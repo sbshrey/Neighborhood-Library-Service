@@ -16,8 +16,8 @@ export default function AuditPage() {
   const { showToast } = useToast();
   const [events, setEvents] = useState<any[]>([]);
   const [search, setSearch] = useState("");
-  const [method, setMethod] = useState("all");
-  const [entity, setEntity] = useState("all");
+  const [method, setMethod] = useState<string[]>([]);
+  const [entity, setEntity] = useState<string[]>([]);
   const [loading, setLoading] = useState(false);
 
   const loadEvents = async () => {
@@ -25,8 +25,6 @@ export default function AuditPage() {
     try {
       const params: any = { limit: 300 };
       if (search.trim()) params.q = search.trim();
-      if (method !== "all") params.method = method;
-      if (entity !== "all") params.entity = entity;
       const logs = await getAuditLogs(params);
       setEvents(logs);
     } catch (err: any) {
@@ -45,7 +43,6 @@ export default function AuditPage() {
   }, []);
 
   const methodOptions = [
-    { value: "all", label: "All methods" },
     { value: "POST", label: "POST" },
     { value: "PATCH", label: "PATCH" },
     { value: "PUT", label: "PUT" },
@@ -54,11 +51,20 @@ export default function AuditPage() {
 
   const entityOptions = useMemo(() => {
     const dynamicEntities = Array.from(new Set(events.map((event) => event.entity).filter(Boolean)));
-    return [
-      { value: "all", label: "All entities" },
-      ...dynamicEntities.map((value) => ({ value, label: String(value) })),
-    ];
+    return dynamicEntities.map((value) => ({ value, label: String(value) }));
   }, [events]);
+
+  const visibleEvents = useMemo(
+    () =>
+      events.filter((event) => {
+        const methodValue = String(event.method || "");
+        const entityValue = event.entity ? String(event.entity) : "";
+        if (method.length > 0 && !method.includes(methodValue)) return false;
+        if (entity.length > 0 && !entity.includes(entityValue)) return false;
+        return true;
+      }),
+    [events, method, entity]
+  );
 
   return (
     <div className="page-layout">
@@ -93,8 +99,9 @@ export default function AuditPage() {
               label="Method"
               value={method}
               options={methodOptions}
-              placeholder="Method filter"
+              placeholder="Any method"
               onChange={setMethod}
+              multiple
             />
           </div>
           <div className="filter-field">
@@ -102,8 +109,9 @@ export default function AuditPage() {
               label="Entity"
               value={entity}
               options={entityOptions}
-              placeholder="Entity filter"
+              placeholder="Any entity"
               onChange={setEntity}
+              multiple
             />
           </div>
           <div className="filter-field">
@@ -114,7 +122,7 @@ export default function AuditPage() {
           </div>
         </div>
         <div className="table">
-          {events.map((event) => (
+          {visibleEvents.map((event) => (
             <div key={event.id} className="row">
               <div>
                 <strong>{event.method} {event.path}</strong>
@@ -136,7 +144,7 @@ export default function AuditPage() {
               </div>
             </div>
           ))}
-          {events.length === 0 ? (
+          {visibleEvents.length === 0 ? (
             <div className="row">
               <div>
                 <strong>No audit logs found.</strong>

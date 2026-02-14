@@ -16,6 +16,8 @@ async def list_books(
     subject: str | None = Query(default=None, description="Filter by subject"),
     published_year: int | None = Query(default=None, ge=0, le=2100),
     available_only: bool = Query(default=False),
+    skip: int = Query(default=0, ge=0),
+    limit: int = Query(default=100, ge=1, le=500),
     db: AsyncSession = Depends(get_db),
     _: object = Depends(get_current_user),
 ):
@@ -25,6 +27,8 @@ async def list_books(
         subject=subject,
         published_year=published_year,
         available_only=available_only,
+        skip=skip,
+        limit=limit,
     )
 
 async def _book_delete_precheck(book_id: int, db: AsyncSession) -> None:

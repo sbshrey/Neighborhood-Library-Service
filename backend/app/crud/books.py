@@ -57,6 +57,8 @@ class CRUDBook(CRUDBase[Book, BookCreate, BookUpdate]):
         subject: str | None,
         published_year: int | None,
         available_only: bool,
+        skip: int = 0,
+        limit: int = 100,
     ) -> list[Book]:
         stmt = select(Book)
         if q:
@@ -76,7 +78,7 @@ class CRUDBook(CRUDBase[Book, BookCreate, BookUpdate]):
             stmt = stmt.where(Book.published_year == published_year)
         if available_only:
             stmt = stmt.where(Book.copies_available > 0)
-        stmt = stmt.order_by(Book.title.asc())
+        stmt = stmt.order_by(Book.title.asc()).offset(skip).limit(limit)
         return await self.scalars_all(db, stmt)
 
     async def create(self, db: AsyncSession, *, obj_in: BookCreate) -> Book:

@@ -57,6 +57,8 @@ async def list_loans(
     overdue_only: bool = Query(default=False),
     user_id: int | None = Query(default=None),
     book_id: int | None = Query(default=None),
+    skip: int = Query(default=0, ge=0),
+    limit: int = Query(default=100, ge=1, le=500),
     db: AsyncSession = Depends(get_db),
     _: object = Depends(require_roles("staff", "admin")),
 ):
@@ -66,6 +68,8 @@ async def list_loans(
         user_id=user_id,
         book_id=book_id,
         overdue_only=overdue_only,
+        skip=skip,
+        limit=limit,
     )
 
 

@@ -20,10 +20,12 @@ router = APIRouter(prefix="/users", tags=["users"])
 @router.get("", response_model=list[UserOut])
 async def list_users(
     q: str | None = Query(default=None, description="Search by name/email/phone"),
+    skip: int = Query(default=0, ge=0),
+    limit: int = Query(default=100, ge=1, le=500),
     db: AsyncSession = Depends(get_db),
     _: object = Depends(require_roles("staff", "admin")),
 ):
-    return await crud_users.list(db, q=q)
+    return await crud_users.list(db, q=q, skip=skip, limit=limit)
 
 
 @router.get("/me", response_model=UserOut)

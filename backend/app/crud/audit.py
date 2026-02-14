@@ -14,6 +14,7 @@ class CRUDAudit(SQLQueryRunner):
         method: str | None,
         entity: str | None,
         status_code: int | None,
+        skip: int,
         limit: int,
     ) -> list[AuditLog]:
         stmt = select(AuditLog)
@@ -36,7 +37,7 @@ class CRUDAudit(SQLQueryRunner):
             stmt = stmt.where(AuditLog.entity == entity.lower())
         if status_code is not None:
             stmt = stmt.where(AuditLog.status_code == status_code)
-        stmt = stmt.order_by(AuditLog.created_at.desc()).limit(limit)
+        stmt = stmt.order_by(AuditLog.created_at.desc()).offset(skip).limit(limit)
         return await self.scalars_all(db, stmt)
 
 

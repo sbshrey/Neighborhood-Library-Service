@@ -48,12 +48,19 @@ class CRUDUser(CRUDBase[User, UserCreate, UserUpdate]):
             ),
         )
 
-    async def list(self, db: AsyncSession, *, q: str | None = None) -> list[User]:
+    async def list(
+        self,
+        db: AsyncSession,
+        *,
+        q: str | None = None,
+        skip: int = 0,
+        limit: int = 100,
+    ) -> list[User]:
         stmt = select(User)
         if q:
             like = f"%{q}%"
             stmt = stmt.where(or_(User.name.ilike(like), User.email.ilike(like), User.phone.ilike(like)))
-        stmt = stmt.order_by(User.name.asc())
+        stmt = stmt.order_by(User.name.asc()).offset(skip).limit(limit)
         return await self.scalars_all(db, stmt)
 
     async def list_loans_with_books(self, db: AsyncSession, *, user_id: int) -> list[tuple[Loan, Book, float]]:

@@ -370,7 +370,7 @@ test.describe('Neighborhood Library Demo Journeys', () => {
       await pickFromCombo(page, 'return-loan-id', memberName, memberName);
       await page.getByTestId('return-submit').click();
       await expect(page.getByTestId('toast-success').last()).toContainText('Return recorded');
-      await page.getByTestId('loan-status-filter').selectOption('all');
+      await page.getByTestId('loan-status-option-all').click();
       const returnedRow = page.getByTestId('loan-row').filter({ hasText: memberName }).first();
       await expect(returnedRow).toContainText('Returned');
       await snap('staff-return-recorded');

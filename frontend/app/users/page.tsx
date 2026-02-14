@@ -18,7 +18,7 @@ type UserModalMode = "create" | "edit" | null;
 export default function UsersPage() {
   const { showToast } = useToast();
   const [users, setUsers] = useState<any[]>([]);
-  const [roleFilter, setRoleFilter] = useState("all");
+  const [roleFilter, setRoleFilter] = useState<string[]>([]);
   const [search, setSearch] = useState("");
 
   const [modalMode, setModalMode] = useState<UserModalMode>(null);
@@ -58,17 +58,14 @@ export default function UsersPage() {
   }, [users]);
 
   const roleFilterOptions = useMemo(
-    () => [
-      { value: "all", label: "All roles", keywords: "all any" },
-      ...roleOptions.map((role) => ({ value: role, label: role, keywords: role })),
-    ],
+    () => roleOptions.map((role) => ({ value: role, label: role, keywords: role })),
     [roleOptions]
   );
 
   const visibleUsers = useMemo(() => {
     const normalized = search.trim().toLowerCase();
     return users.filter((user) => {
-      if (roleFilter !== "all" && user.role !== roleFilter) return false;
+      if (roleFilter.length > 0 && !roleFilter.includes(user.role)) return false;
       if (!normalized) return true;
       const haystack = `${user.id} ${user.name} ${user.email || ""} ${user.phone || ""}`.toLowerCase();
       return haystack.includes(normalized);
@@ -213,8 +210,9 @@ export default function UsersPage() {
               label="Role"
               value={roleFilter}
               options={roleFilterOptions}
-              placeholder="Filter by role"
+              placeholder="Any role"
               onChange={setRoleFilter}
+              multiple
               testId="users-role-filter"
             />
           </div>

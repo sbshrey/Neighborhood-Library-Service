@@ -51,6 +51,41 @@ async function request<T>(path: string, options: RequestOptions = {}): Promise<T
   return res.json();
 }
 
+async function requestAllPages<T>(
+  path: string,
+  params?: URLSearchParams,
+  options?: RequestOptions & { pageSize?: number; maxItems?: number }
+): Promise<T[]> {
+  const pageSize = options?.pageSize ?? 200;
+  const maxItems = options?.maxItems;
+  const requestOptions: RequestOptions = {
+    ...options,
+  };
+  delete (requestOptions as { pageSize?: number }).pageSize;
+  delete (requestOptions as { maxItems?: number }).maxItems;
+  const items: T[] = [];
+  let skip = 0;
+
+  while (true) {
+    const query = new URLSearchParams(params);
+    const remaining = typeof maxItems === "number" ? maxItems - items.length : undefined;
+    if (typeof remaining === "number" && remaining <= 0) break;
+    const limit = typeof remaining === "number" ? Math.min(pageSize, remaining) : pageSize;
+
+    query.set("skip", String(skip));
+    query.set("limit", String(limit));
+
+    const suffix = query.toString() ? `?${query.toString()}` : "";
+    const chunk = await request<T[]>(`${path}${suffix}`, requestOptions);
+    items.push(...chunk);
+
+    if (chunk.length < limit) break;
+    skip += chunk.length;
+  }
+
+  return items;
+}
+
 async function upload<T>(path: string, file: File): Promise<T> {
   const token = getStoredToken();
   const apiBase = getApiBase();
@@ -156,8 +191,9 @@ export type FineSummary = {
 };
 
 export async function getBooks(q?: string) {
-  const suffix = q?.trim() ? `?q=${encodeURIComponent(q.trim())}` : "";
-  return request<any[]>(`/books${suffix}`);
+  const query = new URLSearchParams();
+  if (q?.trim()) query.set("q", q.trim());
+  return requestAllPages<any>("/books", query, { method: "GET", pageSize: 200 });
 }
 
 export async function createBook(payload: any) {
@@ -181,8 +217,9 @@ export async function deleteBook(bookId: number) {
 }
 
 export async function getUsers(q?: string) {
-  const suffix = q?.trim() ? `?q=${encodeURIComponent(q.trim())}` : "";
-  return request<any[]>(`/users${suffix}`);
+  const query = new URLSearchParams();
+  if (q?.trim()) query.set("q", q.trim());
+  return requestAllPages<any>("/users", query, { method: "GET", pageSize: 200 });
 }
 
 export async function createUser(payload: any) {
@@ -206,7 +243,7 @@ export async function deleteUser(userId: number) {
 }
 
 export async function getLoans() {
-  return request<LoanItem[]>("/loans", { method: "GET" });
+  return requestAllPages<LoanItem>("/loans", undefined, { method: "GET", pageSize: 200 });
 }
 
 export async function borrowBook(payload: any) {
@@ -288,9 +325,12 @@ export async function getAuditLogs(params?: {
   if (params?.method?.trim()) query.set("method", params.method.trim());
   if (params?.entity?.trim()) query.set("entity", params.entity.trim());
   if (typeof params?.status_code === "number") query.set("status_code", String(params.status_code));
-  if (typeof params?.limit === "number") query.set("limit", String(params.limit));
-  const suffix = query.toString() ? `?${query.toString()}` : "";
-  return request<AuditLog[]>(`/audit/logs${suffix}`, { method: "GET" });
+  const maxItems = typeof params?.limit === "number" ? params.limit : undefined;
+  return requestAllPages<AuditLog>("/audit/logs", query, {
+    method: "GET",
+    pageSize: 200,
+    maxItems,
+  });
 }
 
 export async function login(payload: { email: string; password: string }) {

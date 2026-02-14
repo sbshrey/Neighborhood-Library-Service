@@ -126,6 +126,20 @@ export default function BorrowingsPage() {
     };
   }, [loans]);
 
+  const statusPills = useMemo(
+    () => [
+      { value: "all", label: "All", count: loans.length },
+      { value: "active", label: "Active", count: stats.active },
+      { value: "overdue", label: "Overdue", count: stats.overdue },
+      {
+        value: "returned",
+        label: "Returned",
+        count: loans.filter((loan) => Boolean(loan.returned_at)).length,
+      },
+    ],
+    [loans, stats.active, stats.overdue]
+  );
+
   const bookLookup = useMemo(() => new Map(books.map((book) => [book.id, book])), [books]);
   const userLookup = useMemo(() => new Map(users.map((user) => [user.id, user])), [users]);
   const activeLoans = useMemo(() => loans.filter((loan) => !loan.returned_at), [loans]);
@@ -389,18 +403,19 @@ export default function BorrowingsPage() {
         <div className="table-card">
           <div className="card-header">
             <h2>Borrowing Register</h2>
-            <div className="filter-field">
-              <label>Status</label>
-              <select
-                value={statusFilter}
-                onChange={(event) => setStatusFilter(event.target.value)}
-                data-testid="loan-status-filter"
-              >
-                <option value="active">Active</option>
-                <option value="overdue">Overdue</option>
-                <option value="returned">Returned</option>
-                <option value="all">All</option>
-              </select>
+            <div className="segmented-control" data-testid="loan-status-filter">
+              {statusPills.map((pill) => (
+                <button
+                  key={pill.value}
+                  type="button"
+                  className={`segment ${statusFilter === pill.value ? "active" : ""}`}
+                  onClick={() => setStatusFilter(pill.value)}
+                  data-testid={`loan-status-option-${pill.value}`}
+                >
+                  {pill.label}
+                  <span className="segment-count">{pill.count}</span>
+                </button>
+              ))}
             </div>
           </div>
           <div className="filter-bar">

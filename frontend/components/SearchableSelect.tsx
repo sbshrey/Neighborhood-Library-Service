@@ -8,16 +8,29 @@ type Option = {
   keywords?: string;
 };
 
-type Props = {
+type BaseProps = {
   label: string;
-  value: string;
   options: Option[];
   placeholder?: string;
   emptyText?: string;
-  required?: boolean;
-  onChange: (value: string) => void;
   testId?: string;
 };
+
+type SingleSelectProps = BaseProps & {
+  value: string;
+  onChange: (value: string) => void;
+  required?: boolean;
+  multiple?: false;
+};
+
+type MultiSelectProps = BaseProps & {
+  value: string[];
+  onChange: (value: string[]) => void;
+  required?: boolean;
+  multiple: true;
+};
+
+type Props = SingleSelectProps | MultiSelectProps;
 
 export default function SearchableSelect({
   label,
@@ -27,6 +40,7 @@ export default function SearchableSelect({
   emptyText = "No matches found.",
   required,
   onChange,
+  multiple = false,
   testId,
 }: Props) {
   const rootRef = useRef<HTMLDivElement | null>(null);
@@ -34,26 +48,39 @@ export default function SearchableSelect({
   const [query, setQuery] = useState("");
   const [activeIndex, setActiveIndex] = useState(0);
 
+  const selectedValues = useMemo(
+    () => (Array.isArray(value) ? value : value ? [value] : []),
+    [value]
+  );
+
+  const selectedOptions = useMemo(
+    () => options.filter((option) => selectedValues.includes(option.value)),
+    [options, selectedValues]
+  );
+
   const selected = useMemo(
-    () => options.find((option) => option.value === value) || null,
+    () => (Array.isArray(value) ? null : options.find((option) => option.value === value) || null),
     [options, value]
   );
 
   useEffect(() => {
+    if (multiple) return;
     setQuery(selected?.label || "");
-  }, [selected?.label]);
+  }, [selected?.label, multiple]);
 
   useEffect(() => {
     const onClickOutside = (event: MouseEvent) => {
       if (!rootRef.current) return;
       if (!rootRef.current.contains(event.target as Node)) {
         setOpen(false);
-        setQuery(selected?.label || "");
+        if (!multiple) {
+          setQuery(selected?.label || "");
+        }
       }
     };
     document.addEventListener("mousedown", onClickOutside);
     return () => document.removeEventListener("mousedown", onClickOutside);
-  }, [selected?.label]);
+  }, [selected?.label, multiple]);
 
   const filteredOptions = useMemo(() => {
     const normalized = query.trim().toLowerCase();
@@ -68,8 +95,29 @@ export default function SearchableSelect({
     setActiveIndex(0);
   }, [query, open]);
 
+  const setSingle = (next: string) => {
+    if (multiple) return;
+    (onChange as (value: string) => void)(next);
+  };
+
+  const setMulti = (next: string[]) => {
+    if (!multiple) return;
+    (onChange as (value: string[]) => void)(next);
+  };
+
   const pick = (option: Option) => {
-    onChange(option.value);
+    if (multiple) {
+      const exists = selectedValues.includes(option.value);
+      const next = exists
+        ? selectedValues.filter((current) => current !== option.value)
+        : [...selectedValues, option.value];
+      setMulti(next);
+      setQuery("");
+      setOpen(true);
+      return;
+    }
+
+    setSingle(option.value);
     setQuery(option.label);
     setOpen(false);
   };
@@ -85,8 +133,8 @@ export default function SearchableSelect({
           onChange={(event) => {
             setQuery(event.target.value);
             setOpen(true);
-            if (!event.target.value.trim()) {
-              onChange("");
+            if (!multiple && !event.target.value.trim()) {
+              setSingle("");
             }
           }}
           onKeyDown={(event) => {
@@ -108,20 +156,26 @@ export default function SearchableSelect({
             }
             if (event.key === "Escape") {
               setOpen(false);
-              setQuery(selected?.label || "");
+              if (!multiple) {
+                setQuery(selected?.label || "");
+              }
             }
           }}
           placeholder={placeholder}
           data-testid={testId}
           required={required}
         />
-        {value ? (
+        {selectedValues.length > 0 ? (
           <button
             type="button"
             className="combo-clear"
             onClick={() => {
-              onChange("");
-              setQuery("");
+              if (multiple) {
+                setMulti([]);
+              } else {
+                setSingle("");
+              }
+              if (!multiple) setQuery("");
               setOpen(false);
             }}
           >
@@ -129,6 +183,23 @@ export default function SearchableSelect({
           </button>
         ) : null}
       </div>
+      {multiple && selectedOptions.length > 0 ? (
+        <div className="combo-chips">
+          {selectedOptions.map((option) => (
+            <button
+              key={option.value}
+              type="button"
+              className="combo-chip"
+              onClick={() => {
+                setMulti(selectedValues.filter((current) => current !== option.value));
+              }}
+            >
+              {option.label}
+              <span aria-hidden="true">×</span>
+            </button>
+          ))}
+        </div>
+      ) : null}
       {open ? (
         <div className="combo-list" role="listbox">
           {filteredOptions.length === 0 ? (
@@ -138,7 +209,9 @@ export default function SearchableSelect({
               <button
                 type="button"
                 key={option.value}
-                className={`combo-option${index === activeIndex ? " active" : ""}`}
+                className={`combo-option${
+                  index === activeIndex ? " active" : ""
+                }${selectedValues.includes(option.value) ? " selected" : ""}`}
                 onMouseDown={(event) => {
                   event.preventDefault();
                   pick(option);

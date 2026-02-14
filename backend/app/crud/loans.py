@@ -134,6 +134,8 @@ class CRUDLoan(SQLQueryRunner):
         user_id: int | None,
         book_id: int | None,
         overdue_only: bool,
+        skip: int = 0,
+        limit: int = 100,
     ) -> list[Loan]:
         await self._get_policy(db)
         stmt = select(Loan)
@@ -147,7 +149,7 @@ class CRUDLoan(SQLQueryRunner):
             stmt = stmt.where(Loan.book_id == book_id)
         if overdue_only:
             stmt = stmt.where(Loan.returned_at.is_(None), Loan.due_at < datetime.now(timezone.utc))
-        stmt = stmt.order_by(Loan.borrowed_at.desc())
+        stmt = stmt.order_by(Loan.borrowed_at.desc()).offset(skip).limit(limit)
         loans = await self.scalars_all(db, stmt)
         loan_ids = [loan.id for loan in loans]
         paid_map = await crud_fine_payments.paid_amounts_by_loans(db, loan_ids)

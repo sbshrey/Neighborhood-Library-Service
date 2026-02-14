@@ -22,9 +22,9 @@ export default function CatalogPage() {
   const { showToast } = useToast();
   const [books, setBooks] = useState<any[]>([]);
   const [search, setSearch] = useState("");
-  const [authorFilter, setAuthorFilter] = useState("all");
-  const [subjectFilter, setSubjectFilter] = useState("all");
-  const [availabilityFilter, setAvailabilityFilter] = useState("all");
+  const [authorFilter, setAuthorFilter] = useState<string[]>([]);
+  const [subjectFilter, setSubjectFilter] = useState<string[]>([]);
+  const [availabilityFilter, setAvailabilityFilter] = useState<string[]>([]);
 
   const [modalMode, setModalMode] = useState<BookModalMode>(null);
   const [activeBookId, setActiveBookId] = useState<number | null>(null);
@@ -72,31 +72,26 @@ export default function CatalogPage() {
   }, [books]);
 
   const authorFilterOptions = useMemo(
-    () => [
-      { value: "all", label: "All authors", keywords: "all any" },
-      ...authorOptions.map((author) => ({
+    () =>
+      authorOptions.map((author) => ({
         value: author,
         label: author,
         keywords: author,
       })),
-    ],
     [authorOptions]
   );
 
   const subjectFilterOptions = useMemo(
-    () => [
-      { value: "all", label: "All subjects", keywords: "all any" },
-      ...subjectOptions.map((subject) => ({
+    () =>
+      subjectOptions.map((subject) => ({
         value: subject,
         label: subject,
         keywords: subject,
       })),
-    ],
     [subjectOptions]
   );
 
   const availabilityFilterOptions = [
-    { value: "all", label: "All availability" },
     { value: "available", label: "Available only" },
     { value: "unavailable", label: "Unavailable only" },
   ];
@@ -104,10 +99,13 @@ export default function CatalogPage() {
   const visibleBooks = useMemo(() => {
     const normalizedSearch = search.trim().toLowerCase();
     return books.filter((book) => {
-      if (authorFilter !== "all" && book.author !== authorFilter) return false;
-      if (subjectFilter !== "all" && book.subject !== subjectFilter) return false;
-      if (availabilityFilter === "available" && book.copies_available <= 0) return false;
-      if (availabilityFilter === "unavailable" && book.copies_available > 0) return false;
+      if (authorFilter.length > 0 && !authorFilter.includes(book.author)) return false;
+      if (subjectFilter.length > 0 && !subjectFilter.includes(book.subject)) return false;
+      if (availabilityFilter.length > 0) {
+        const isAvailable = book.copies_available > 0;
+        if (isAvailable && !availabilityFilter.includes("available")) return false;
+        if (!isAvailable && !availabilityFilter.includes("unavailable")) return false;
+      }
       if (!normalizedSearch) return true;
       const haystack =
         `${book.id} ${book.title} ${book.author} ${book.subject || ""} ` +
@@ -273,8 +271,9 @@ export default function CatalogPage() {
               label="Author"
               value={authorFilter}
               options={authorFilterOptions}
-              placeholder="Filter by author"
+              placeholder="Any author"
               onChange={setAuthorFilter}
+              multiple
               testId="catalog-author-filter"
             />
           </div>
@@ -283,8 +282,9 @@ export default function CatalogPage() {
               label="Availability"
               value={availabilityFilter}
               options={availabilityFilterOptions}
-              placeholder="Filter by availability"
+              placeholder="Any availability"
               onChange={setAvailabilityFilter}
+              multiple
               testId="catalog-availability-filter"
             />
           </div>
@@ -293,8 +293,9 @@ export default function CatalogPage() {
               label="Subject"
               value={subjectFilter}
               options={subjectFilterOptions}
-              placeholder="Filter by subject"
+              placeholder="Any subject"
               onChange={setSubjectFilter}
+              multiple
               testId="catalog-subject-filter"
             />
           </div>
@@ -309,13 +310,18 @@ export default function CatalogPage() {
               data-testid="book-row"
               data-book-id={book.id}
             >
-              <div>
-                <strong>{book.title}</strong>
-                <div>
-                  <span>{book.author}</span>
-                </div>
-                <div>
-                  <span>{book.subject || "General"} · Rack {book.rack_number || "-"}</span>
+              <div className="book-primary">
+                <strong className="book-title">{book.title}</strong>
+                <div className="book-author">{book.author}</div>
+                <div className="book-meta-inline">
+                  <span className="book-meta-item">
+                    <span className="book-meta-key">Category</span>
+                    <span>{book.subject || "General"}</span>
+                  </span>
+                  <span className="book-meta-item">
+                    <span className="book-meta-key">Rack</span>
+                    <span>{book.rack_number || "-"}</span>
+                  </span>
                 </div>
               </div>
               <div>
