@@ -1,11 +1,9 @@
 from fastapi import APIRouter, Depends, HTTPException, Query, status
-from sqlalchemy import or_, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from ..crud.books import crud_books
 from ..db import get_db
 from ..deps import get_current_user, require_roles
-from ..models import Book
 from ..schemas.books import BookCreate, BookOut, BookUpdate
 from .crud import register_crud_endpoints
 
@@ -21,27 +19,13 @@ async def list_books(
     db: AsyncSession = Depends(get_db),
     _: object = Depends(get_current_user),
 ):
-    stmt = select(Book)
-    if q:
-        like = f"%{q}%"
-        stmt = stmt.where(
-            or_(
-                Book.title.ilike(like),
-                Book.author.ilike(like),
-                Book.isbn.ilike(like),
-                Book.subject.ilike(like),
-                Book.rack_number.ilike(like),
-            )
-        )
-    if subject:
-        stmt = stmt.where(Book.subject.ilike(f"%{subject}%"))
-    if published_year is not None:
-        stmt = stmt.where(Book.published_year == published_year)
-    if available_only:
-        stmt = stmt.where(Book.copies_available > 0)
-    stmt = stmt.order_by(Book.title.asc())
-    result = await db.execute(stmt)
-    return list(result.scalars().all())
+    return await crud_books.list(
+        db,
+        q=q,
+        subject=subject,
+        published_year=published_year,
+        available_only=available_only,
+    )
 
 async def _book_delete_precheck(book_id: int, db: AsyncSession) -> None:
     if await crud_books.active_loans(db, book_id) > 0:

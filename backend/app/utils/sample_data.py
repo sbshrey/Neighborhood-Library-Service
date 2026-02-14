@@ -1,16 +1,17 @@
 from typing import Any
 
-from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from ..models import Book, Loan, User
+from ..crud.books import crud_books
+from ..crud.loans import crud_loans
+from ..crud.users import crud_users
 from .bulk_import import import_seed_india
 
 
 async def seed_sample_data(db: AsyncSession) -> dict[str, Any]:
-    books_count = await db.scalar(select(func.count(Book.id)))
-    users_count = await db.scalar(select(func.count(User.id)))
-    loans_count = await db.scalar(select(func.count(Loan.id)))
+    books_count = await crud_books.count_all(db)
+    users_count = await crud_users.count_all(db)
+    loans_count = await crud_loans.count_all(db)
 
     if books_count or users_count or loans_count:
         return {

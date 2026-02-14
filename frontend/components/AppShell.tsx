@@ -44,13 +44,21 @@ export default function AppShell({ children }: { children: React.ReactNode }) {
       try {
         const me = await getMe();
         if (!mounted) return;
-        if (!["admin", "staff"].includes(me.role)) {
+        if (!["admin", "staff", "member"].includes(me.role)) {
           clearAuth();
           router.replace("/login");
           return;
         }
-        if (adminOnlyRoutes.includes(pathname) && me.role !== "admin") {
+        if (me.role === "member" && pathname !== "/member") {
+          router.replace("/member");
+          return;
+        }
+        if (me.role !== "member" && pathname === "/member") {
           router.replace("/");
+          return;
+        }
+        if (adminOnlyRoutes.includes(pathname) && me.role !== "admin") {
+          router.replace(me.role === "member" ? "/member" : "/");
           return;
         }
         setStoredUser(me);
@@ -113,12 +121,12 @@ export default function AppShell({ children }: { children: React.ReactNode }) {
               <div className="meta-label">Signed in</div>
               <div className="meta-value">{user?.name || "Unknown user"}</div>
               <div className="brand-subtitle">{user?.role || "member"}</div>
-              <button className="ghost" onClick={onLogout}>
+              <button className="ghost" onClick={onLogout} data-testid="logout-btn">
                 Logout
               </button>
             </div>
             <div className="sidebar-note">
-              Staff portal for borrowings, returns, and fine tracking.
+              Library workspace for circulation operations and member loan tracking.
             </div>
           </div>
         </aside>

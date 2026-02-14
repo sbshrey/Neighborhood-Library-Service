@@ -2,9 +2,11 @@ from fastapi import APIRouter, Depends, HTTPException, Query, status
 from sqlalchemy.exc import SQLAlchemyError
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from ..crud.fine_payments import crud_fine_payments
 from ..crud.loans import crud_loans
 from ..db import get_db
 from ..deps import require_roles
+from ..schemas.fine_payments import FinePaymentCreate, FinePaymentOut, FineSummaryOut
 from ..schemas.loans import LoanCreate, LoanOut, LoanUpdate
 
 router = APIRouter(prefix="/loans", tags=["loans"])
@@ -65,6 +67,49 @@ async def list_loans(
         book_id=book_id,
         overdue_only=overdue_only,
     )
+
+
+@router.get("/{loan_id}/fine-summary", response_model=FineSummaryOut)
+async def get_loan_fine_summary(
+    loan_id: int,
+    db: AsyncSession = Depends(get_db),
+    _: object = Depends(require_roles("staff", "admin")),
+):
+    loan = await crud_loans.get(db, loan_id)
+    if not loan:
+        raise HTTPException(status_code=404, detail="Loan not found")
+    return await crud_fine_payments.summary_for_loan(db, loan)
+
+
+@router.get("/{loan_id}/fine-payments", response_model=list[FinePaymentOut])
+async def list_loan_fine_payments(
+    loan_id: int,
+    db: AsyncSession = Depends(get_db),
+    _: object = Depends(require_roles("staff", "admin")),
+):
+    loan = await crud_loans.get(db, loan_id)
+    if not loan:
+        raise HTTPException(status_code=404, detail="Loan not found")
+    return await crud_fine_payments.list_for_loan(db, loan_id=loan_id)
+
+
+@router.post("/{loan_id}/fine-payments", response_model=FinePaymentOut, status_code=status.HTTP_201_CREATED)
+async def collect_fine_payment(
+    loan_id: int,
+    payload: FinePaymentCreate,
+    db: AsyncSession = Depends(get_db),
+    _: object = Depends(require_roles("staff", "admin")),
+):
+    try:
+        return await crud_fine_payments.create_for_loan(db, loan_id=loan_id, payload=payload)
+    except ValueError as exc:
+        detail = str(exc)
+        if detail == "Loan not found":
+            raise HTTPException(status_code=404, detail=detail) from exc
+        raise HTTPException(status_code=400, detail=detail) from exc
+    except SQLAlchemyError as exc:
+        await db.rollback()
+        raise HTTPException(status_code=500, detail="Database error while recording fine payment.") from exc
 
 
 @router.patch("/{loan_id}", response_model=LoanOut)

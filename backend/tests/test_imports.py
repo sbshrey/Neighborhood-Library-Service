@@ -43,6 +43,33 @@ async def test_bulk_import_csv_endpoints(client, auth_headers):
     assert loans_resp.status_code == 200
     assert loans_resp.json()["imported"] == 1
 
+    books_dup = await client.post(
+        "/imports/books",
+        files={"file": ("books.csv", books_csv, "text/csv")},
+        headers=auth_headers,
+    )
+    assert books_dup.status_code == 200
+    assert books_dup.json()["imported"] == 0
+    assert books_dup.json()["skipped"] == 1
+
+    users_dup = await client.post(
+        "/imports/users",
+        files={"file": ("users.csv", users_csv, "text/csv")},
+        headers=auth_headers,
+    )
+    assert users_dup.status_code == 200
+    assert users_dup.json()["imported"] == 0
+    assert users_dup.json()["skipped"] == 1
+
+    loans_dup = await client.post(
+        "/imports/loans",
+        files={"file": ("loans.csv", loans_csv, "text/csv")},
+        headers=auth_headers,
+    )
+    assert loans_dup.status_code == 200
+    assert loans_dup.json()["imported"] == 0
+    assert loans_dup.json()["skipped"] == 1
+
     listed_loans = await client.get("/loans?active=true", headers=auth_headers)
     assert listed_loans.status_code == 200
     assert listed_loans.json()[0]["overdue_days"] >= 0

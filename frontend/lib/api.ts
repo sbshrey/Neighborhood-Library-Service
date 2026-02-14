@@ -79,8 +79,85 @@ async function upload<T>(path: string, file: File): Promise<T> {
   return res.json();
 }
 
-export async function getBooks() {
-  return request<any[]>("/books");
+export type LibraryPolicy = {
+  id: number;
+  enforce_limits: boolean;
+  max_active_loans_per_user: number;
+  max_loan_days: number;
+  fine_per_day: number;
+  updated_at: string;
+};
+
+export type AuditLog = {
+  id: number;
+  actor_user_id: number | null;
+  actor_role: string | null;
+  method: string;
+  path: string;
+  entity: string | null;
+  entity_id: number | null;
+  status_code: number;
+  duration_ms: number;
+  created_at: string;
+};
+
+export type MemberLoan = {
+  id: number;
+  book_id: number;
+  user_id: number;
+  borrowed_at: string;
+  due_at: string;
+  returned_at: string | null;
+  is_overdue: boolean;
+  overdue_days: number;
+  estimated_fine: number;
+  book_title: string;
+  book_author: string;
+  book_isbn: string | null;
+  fine_paid: number;
+  fine_due: number;
+  is_fine_settled: boolean;
+};
+
+export type LoanItem = {
+  id: number;
+  book_id: number;
+  user_id: number;
+  borrowed_at: string;
+  due_at: string;
+  returned_at: string | null;
+  is_overdue: boolean;
+  overdue_days: number;
+  estimated_fine: number;
+  fine_paid: number;
+  fine_due: number;
+  is_fine_settled: boolean;
+};
+
+export type FinePayment = {
+  id: number;
+  loan_id: number;
+  user_id: number;
+  amount: number;
+  payment_mode: string;
+  reference: string | null;
+  notes: string | null;
+  collected_at: string;
+  created_at: string;
+};
+
+export type FineSummary = {
+  loan_id: number;
+  estimated_fine: number;
+  fine_paid: number;
+  fine_due: number;
+  payment_count: number;
+  is_settled: boolean;
+};
+
+export async function getBooks(q?: string) {
+  const suffix = q?.trim() ? `?q=${encodeURIComponent(q.trim())}` : "";
+  return request<any[]>(`/books${suffix}`);
 }
 
 export async function createBook(payload: any) {
@@ -103,8 +180,9 @@ export async function deleteBook(bookId: number) {
   });
 }
 
-export async function getUsers() {
-  return request<any[]>("/users");
+export async function getUsers(q?: string) {
+  const suffix = q?.trim() ? `?q=${encodeURIComponent(q.trim())}` : "";
+  return request<any[]>(`/users${suffix}`);
 }
 
 export async function createUser(payload: any) {
@@ -128,7 +206,7 @@ export async function deleteUser(userId: number) {
 }
 
 export async function getLoans() {
-  return request<any[]>("/loans", { method: "GET" });
+  return request<LoanItem[]>("/loans", { method: "GET" });
 }
 
 export async function borrowBook(payload: any) {
@@ -182,6 +260,39 @@ export async function importLoansFile(file: File) {
   );
 }
 
+export async function getPolicy() {
+  return request<LibraryPolicy>("/settings/policy", { method: "GET" });
+}
+
+export async function updatePolicy(payload: {
+  enforce_limits: boolean;
+  max_active_loans_per_user: number;
+  max_loan_days: number;
+  fine_per_day: number;
+}) {
+  return request<LibraryPolicy>("/settings/policy", {
+    method: "PUT",
+    body: JSON.stringify(payload),
+  });
+}
+
+export async function getAuditLogs(params?: {
+  q?: string;
+  method?: string;
+  entity?: string;
+  status_code?: number;
+  limit?: number;
+}) {
+  const query = new URLSearchParams();
+  if (params?.q?.trim()) query.set("q", params.q.trim());
+  if (params?.method?.trim()) query.set("method", params.method.trim());
+  if (params?.entity?.trim()) query.set("entity", params.entity.trim());
+  if (typeof params?.status_code === "number") query.set("status_code", String(params.status_code));
+  if (typeof params?.limit === "number") query.set("limit", String(params.limit));
+  const suffix = query.toString() ? `?${query.toString()}` : "";
+  return request<AuditLog[]>(`/audit/logs${suffix}`, { method: "GET" });
+}
+
 export async function login(payload: { email: string; password: string }) {
   return request<{ access_token: string; user: any; expires_in: number; token_type: string }>(
     "/auth/login",
@@ -195,6 +306,32 @@ export async function login(payload: { email: string; password: string }) {
 
 export async function getMe() {
   return request<any>("/auth/me", { method: "GET" });
+}
+
+export async function getMyLoans() {
+  return request<MemberLoan[]>("/users/me/loans", { method: "GET" });
+}
+
+export async function getMyFinePayments() {
+  return request<FinePayment[]>("/users/me/fine-payments", { method: "GET" });
+}
+
+export async function getLoanFineSummary(loanId: number) {
+  return request<FineSummary>(`/loans/${loanId}/fine-summary`, { method: "GET" });
+}
+
+export async function getLoanFinePayments(loanId: number) {
+  return request<FinePayment[]>(`/loans/${loanId}/fine-payments`, { method: "GET" });
+}
+
+export async function createLoanFinePayment(
+  loanId: number,
+  payload: { amount: number; payment_mode: string; reference?: string | null; notes?: string | null }
+) {
+  return request<FinePayment>(`/loans/${loanId}/fine-payments`, {
+    method: "POST",
+    body: JSON.stringify(payload),
+  });
 }
 
 export async function bootstrapAdmin(payload: {

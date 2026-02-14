@@ -9,14 +9,23 @@ const staffLinks = [
   { href: "/", label: "Borrowings" },
 ];
 
+const memberLinks = [
+  { href: "/member", label: "My Loans" },
+];
+
 const adminLinks = [
   { href: "/", label: "Borrowings" },
   { href: "/settings", label: "Admin Settings" },
+  { href: "/catalog", label: "Catalog" },
+  { href: "/users", label: "Users" },
+  { href: "/roles", label: "Roles" },
+  { href: "/audit", label: "Audit" },
 ];
 
 export default function SidebarNav({ user }: { user: AuthUser | null }) {
   const pathname = usePathname();
-  const navLinks = user?.role === "admin" ? adminLinks : staffLinks;
+  const navLinks =
+    user?.role === "admin" ? adminLinks : user?.role === "member" ? memberLinks : staffLinks;
 
   return (
     <nav className="nav">

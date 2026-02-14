@@ -1,8 +1,8 @@
 from fastapi import APIRouter, Depends, HTTPException, status
-from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from ..config import settings
+from ..crud.auth import crud_auth
 from ..db import get_db
 from ..deps import get_current_user
 from ..models import User
@@ -14,8 +14,7 @@ router = APIRouter(prefix="/auth", tags=["auth"])
 
 @router.post("/login", response_model=TokenOut)
 async def login(payload: LoginRequest, db: AsyncSession = Depends(get_db)):
-    stmt = select(User).where(User.email == payload.email)
-    user = (await db.execute(stmt)).scalar_one_or_none()
+    user = await crud_auth.get_by_email(db, payload.email)
     if not user or not verify_password(payload.password, user.password_hash):
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,

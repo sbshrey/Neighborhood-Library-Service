@@ -9,7 +9,6 @@ from typing import Any
 
 from fastapi import UploadFile
 from openpyxl import load_workbook
-from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from ..config import settings
@@ -49,6 +48,10 @@ def _normalize_cell(value: Any) -> Any:
         normalized = value.strip()
         return normalized if normalized != "" else None
     return value
+
+
+def _normalize_text(value: Any) -> str:
+    return str(value or "").strip()
 
 
 def _parse_int(value: Any) -> int | None:
@@ -128,22 +131,36 @@ async def import_books_rows(db: AsyncSession, rows: list[dict[str, Any]]) -> Imp
     result = ImportResult(entity="books", errors=[])
     for index, row in enumerate(rows, start=2):
         try:
-            isbn = row.get("isbn")
+            isbn = _normalize_text(row.get("isbn"))
+            title = _normalize_text(row.get("title"))
+            author = _normalize_text(row.get("author"))
+            published_year = _parse_int(row.get("published_year"))
+            if not title or not author:
+                raise ValueError("title and author are required")
+
             if isbn:
-                existing = (
-                    await db.execute(select(Book).where(Book.isbn == str(isbn).strip()))
-                ).scalar_one_or_none()
+                existing = await crud_books.get_by_isbn(db, isbn)
+                if existing:
+                    result.skipped += 1
+                    continue
+            else:
+                existing = await crud_books.find_natural_key(
+                    db,
+                    title=title,
+                    author=author,
+                    published_year=published_year,
+                )
                 if existing:
                     result.skipped += 1
                     continue
 
             payload = BookCreate(
-                title=str(row.get("title") or "").strip(),
-                author=str(row.get("author") or "").strip(),
+                title=title,
+                author=author,
                 subject=row.get("subject"),
                 rack_number=row.get("rack_number"),
-                isbn=row.get("isbn"),
-                published_year=_parse_int(row.get("published_year")),
+                isbn=isbn or None,
+                published_year=published_year,
                 copies_total=_parse_int(row.get("copies_total")) or 0,
             )
             await crud_books.create(db, obj_in=payload)
@@ -157,21 +174,31 @@ async def import_users_rows(db: AsyncSession, rows: list[dict[str, Any]]) -> Imp
     result = ImportResult(entity="users", errors=[])
     for index, row in enumerate(rows, start=2):
         try:
-            email = row.get("email")
-            if email:
-                existing = (
-                    await db.execute(select(User).where(User.email == str(email).strip()))
-                ).scalar_one_or_none()
-                if existing:
-                    result.skipped += 1
-                    continue
+            name = _normalize_text(row.get("name"))
+            email = _normalize_text(row.get("email"))
+            phone = _normalize_text(row.get("phone"))
+            role = _normalize_text(row.get("role") or "member").lower()
+            password = _normalize_text(row.get("password"))
+            if not name:
+                raise ValueError("name is required")
+
+            existing = await crud_users.find_import_duplicate(
+                db,
+                name=name,
+                role=role,
+                email=email or None,
+                phone=phone or None,
+            )
+            if existing:
+                result.skipped += 1
+                continue
 
             payload = UserCreate(
-                name=str(row.get("name") or "").strip(),
-                email=str(email).strip() if email else None,
-                phone=str(row.get("phone")).strip() if row.get("phone") else None,
-                role=str(row.get("role") or "member").strip().lower(),
-                password=str(row.get("password")).strip() if row.get("password") else None,
+                name=name,
+                email=email or None,
+                phone=phone or None,
+                role=role,
+                password=password or None,
             )
             await crud_users.create(db, obj_in=payload)
             result.imported += 1
@@ -183,25 +210,38 @@ async def import_users_rows(db: AsyncSession, rows: list[dict[str, Any]]) -> Imp
 async def _find_book(db: AsyncSession, row: dict[str, Any]) -> Book | None:
     book_id = _parse_int(row.get("book_id"))
     if book_id:
-        return await db.get(Book, book_id)
+        return await crud_books.get(db, book_id)
     book_isbn = row.get("book_isbn")
     if book_isbn:
-        return (
-            await db.execute(select(Book).where(Book.isbn == str(book_isbn).strip()))
-        ).scalar_one_or_none()
+        return await crud_books.get_by_isbn(db, str(book_isbn))
     return None
 
 
 async def _find_user(db: AsyncSession, row: dict[str, Any]) -> User | None:
     user_id = _parse_int(row.get("user_id"))
     if user_id:
-        return await db.get(User, user_id)
+        return await crud_users.get(db, user_id)
     user_email = row.get("user_email")
     if user_email:
-        return (
-            await db.execute(select(User).where(User.email == str(user_email).strip()))
-        ).scalar_one_or_none()
+        return await crud_users.get_by_email_exact(db, str(user_email))
     return None
+
+
+async def _find_matching_loan(
+    db: AsyncSession,
+    *,
+    book_id: int,
+    user_id: int,
+    borrowed_at: datetime,
+    due_at: datetime,
+):
+    return await crud_loans.find_by_signature(
+        db,
+        book_id=book_id,
+        user_id=user_id,
+        borrowed_at=borrowed_at,
+        due_at=due_at,
+    )
 
 
 async def import_loans_rows(db: AsyncSession, rows: list[dict[str, Any]]) -> ImportResult:
@@ -236,6 +276,21 @@ async def import_loans_rows(db: AsyncSession, rows: list[dict[str, Any]]) -> Imp
             returned_at = _parse_datetime(row.get("returned_at"))
             if returned_at and returned_at < borrowed_at:
                 raise ValueError("returned_at cannot be before borrowed_at")
+
+            existing = await _find_matching_loan(
+                db,
+                book_id=book.id,
+                user_id=user.id,
+                borrowed_at=borrowed_at,
+                due_at=due_at,
+            )
+            if existing:
+                if returned_at and existing.returned_at is None:
+                    await crud_loans.return_loan(db, existing.id)
+                    existing.returned_at = returned_at
+                    await db.flush()
+                result.skipped += 1
+                continue
 
             loan = await crud_loans.borrow(
                 db,

@@ -65,7 +65,7 @@ export default function LoginPage() {
       <div className="badge">Authentication</div>
       <h1>Sign In</h1>
       <p className="lede">
-        Staff/Admin portal for borrowing operations, returns, and fine monitoring.
+        Sign in as admin, staff, or member to access your library workspace.
       </p>
 
       <form onSubmit={onSubmit} data-testid="login-form">
@@ -118,7 +118,7 @@ export default function LoginPage() {
         </p>
       )}
       <p className="footer">
-        Customer/member self-login is disabled. First run: use Bootstrap Admin once.
+        First run only: use Bootstrap Admin once. Members can sign in after account creation.
       </p>
     </section>
   );

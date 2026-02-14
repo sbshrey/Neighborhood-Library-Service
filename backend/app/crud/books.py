@@ -1,8 +1,11 @@
-from sqlalchemy import func, select
+from __future__ import annotations
+
+from sqlalchemy import func, or_, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from ..models import Book, Loan
 from ..schemas.books import BookCreate, BookUpdate
+from ..utils.audit_fields import stamp_created_updated_by
 from .base import CRUDBase
 
 
@@ -15,9 +18,66 @@ class CRUDBook(CRUDBase[Book, BookCreate, BookUpdate]):
         return normalized or None
 
     async def active_loans(self, db: AsyncSession, book_id: int) -> int:
-        return await db.scalar(
-            select(func.count(Loan.id)).where(Loan.book_id == book_id, Loan.returned_at.is_(None))
+        return int(
+            await self.scalar(
+                db,
+                select(func.count(Loan.id)).where(Loan.book_id == book_id, Loan.returned_at.is_(None)),
+                default=0,
+            )
         )
+
+    async def count_all(self, db: AsyncSession) -> int:
+        return int(await self.scalar(db, select(func.count(Book.id)), default=0))
+
+    async def get_by_isbn(self, db: AsyncSession, isbn: str) -> Book | None:
+        return await self.scalar_one_or_none(db, select(Book).where(Book.isbn == isbn.strip()))
+
+    async def find_natural_key(
+        self,
+        db: AsyncSession,
+        *,
+        title: str,
+        author: str,
+        published_year: int | None,
+    ) -> Book | None:
+        stmt = select(Book).where(
+            func.lower(Book.title) == title.lower(),
+            func.lower(Book.author) == author.lower(),
+            Book.published_year.is_(published_year)
+            if published_year is None
+            else Book.published_year == published_year,
+        )
+        return await self.scalar_one_or_none(db, stmt)
+
+    async def list(
+        self,
+        db: AsyncSession,
+        *,
+        q: str | None,
+        subject: str | None,
+        published_year: int | None,
+        available_only: bool,
+    ) -> list[Book]:
+        stmt = select(Book)
+        if q:
+            like = f"%{q}%"
+            stmt = stmt.where(
+                or_(
+                    Book.title.ilike(like),
+                    Book.author.ilike(like),
+                    Book.isbn.ilike(like),
+                    Book.subject.ilike(like),
+                    Book.rack_number.ilike(like),
+                )
+            )
+        if subject:
+            stmt = stmt.where(Book.subject.ilike(f"%{subject}%"))
+        if published_year is not None:
+            stmt = stmt.where(Book.published_year == published_year)
+        if available_only:
+            stmt = stmt.where(Book.copies_available > 0)
+        stmt = stmt.order_by(Book.title.asc())
+        return await self.scalars_all(db, stmt)
 
     async def create(self, db: AsyncSession, *, obj_in: BookCreate) -> Book:
         book = Book(
@@ -30,6 +90,7 @@ class CRUDBook(CRUDBase[Book, BookCreate, BookUpdate]):
             copies_total=obj_in.copies_total,
             copies_available=obj_in.copies_total,
         )
+        stamp_created_updated_by(book, is_create=True)
         db.add(book)
         await db.flush()
         await db.refresh(book)
@@ -56,6 +117,7 @@ class CRUDBook(CRUDBase[Book, BookCreate, BookUpdate]):
 
         for key, value in updates.items():
             setattr(db_obj, key, value)
+        stamp_created_updated_by(db_obj, is_create=False)
         await db.flush()
         await db.refresh(db_obj)
         return db_obj

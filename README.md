@@ -22,6 +22,51 @@ A full‑stack take‑home implementation for managing books, users, and lending
 
 ---
 
+## Quick Start Script
+From repo root:
+```bash
+./start.sh
+```
+
+With Makefile shortcuts:
+```bash
+make help
+make up
+```
+
+Common variants:
+```bash
+# run all + playwright
+./start.sh --with-e2e
+
+# run all + headed visual demo tests
+./start.sh --with-e2e-visual
+
+# run only backend
+./start.sh --backend-only
+
+# skip dependency install and migrations
+./start.sh --skip-install --skip-migrate
+```
+
+Make equivalents:
+```bash
+make up-e2e
+make up-e2e-visual
+make backend
+make up-fast
+make test-backend
+make test-e2e
+make clean
+make reset-db CONFIRM=YES
+```
+
+Script logs are written to:
+- `.run-logs/backend.log`
+- `.run-logs/frontend.log`
+
+---
+
 ## Backend
 
 ### 1) Start local PostgreSQL (no Docker/Podman)
@@ -71,6 +116,8 @@ API docs: `http://localhost:8000/docs`
 ### Useful Endpoints
 - `POST /auth/login`
 - `GET /auth/me`
+- `GET /users/me/loans`
+- `GET /users/me/fine-payments`
 - `POST /books`
 - `GET /books`
 - `POST /users`
@@ -78,16 +125,21 @@ API docs: `http://localhost:8000/docs`
 - `POST /loans/borrow`
 - `POST /loans/{loan_id}/return`
 - `GET /loans`
+- `GET /loans/{loan_id}/fine-summary`
+- `GET /loans/{loan_id}/fine-payments`
+- `POST /loans/{loan_id}/fine-payments`
 - `GET /books?subject=<value>&published_year=<year>`
 - `GET /loans?overdue_only=true`
 - `POST /imports/books` (CSV/XLSX upload)
 - `POST /imports/users` (CSV/XLSX upload)
 - `POST /imports/loans` (CSV/XLSX upload)
+- Imports are idempotent: existing rows are skipped and only new rows are inserted.
 
 Most endpoints now require a Bearer JWT. Roles:
 - `admin`: full access (admin settings, catalog/users management, imports, circulation)
 - `staff`: circulation workflow (borrow/return/fines) + read-only data needed for desk operations
-- `member`: not used in frontend portal (customer self-login intentionally disabled)
+- `member`: self-service view for own borrowing history, returns, and fines
+  - includes fine payment history with payment mode and references
 
 Login example:
 ```bash
@@ -148,8 +200,8 @@ npm run dev
 - Open `http://localhost:3000/login`
 - On a fresh DB with zero users, enter Name/Email/Password and click **Bootstrap Admin (First Run)**.
 - After bootstrap, use the same credentials to sign in.
-- UI is staff/admin-only (customer/member self-login is intentionally not supported in this portal).
 - Staff sees circulation workflow only (borrow/return/fines). Admin additionally sees **Admin Settings**.
+- Members can sign in and are routed to `/member` for self-service loan/fine tracking.
 
 ### Playwright E2E Tests
 Ensure the backend API is running and the frontend dev server is up.
@@ -163,6 +215,26 @@ npm run test:e2e
 If your frontend runs on a different URL:
 ```bash
 E2E_BASE_URL=http://localhost:3000 npm run test:e2e
+```
+
+If API is not on `:8000`:
+```bash
+E2E_API_BASE=http://localhost:8000 npm run test:e2e
+```
+
+Bootstrap-aware admin creds for first run or existing setup:
+```bash
+E2E_ADMIN_NAME="E2E Admin" \
+E2E_ADMIN_EMAIL="admin@example.com" \
+E2E_ADMIN_PASSWORD="Admin@12345" \
+E2E_EXISTING_ADMIN_EMAIL="existing-admin@example.com" \
+E2E_EXISTING_ADMIN_PASSWORD="Existing@12345" \
+npm run test:e2e
+```
+
+Visual demo mode (headed + video + screenshots + trace):
+```bash
+npm run test:e2e:visual
 ```
 
 ---
@@ -179,6 +251,7 @@ E2E_BASE_URL=http://localhost:3000 npm run test:e2e
   - `CIRCULATION_MAX_LOAN_DAYS`
   - `OVERDUE_FINE_PER_DAY`
 - Curated onboarding CSV files are included in `backend/data/seed_india/` with Indian books/users and historical loan transactions.
+- Fine payment modes supported: `cash`, `upi`, `card`, `net_banking`, `wallet`, `waiver`, `adjustment`.
 
 ## Tests (80%+ Coverage)
 ```bash

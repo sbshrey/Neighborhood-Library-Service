@@ -1,45 +1,150 @@
+"use client";
+
+import { useEffect, useMemo, useState } from "react";
+
+import SearchableSelect from "../../components/SearchableSelect";
+import { useToast } from "../../components/ToastProvider";
+import { getAuditLogs } from "../../lib/api";
+
+function formatTime(value: string) {
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return value;
+  return `${date.toLocaleDateString()} ${date.toLocaleTimeString()}`;
+}
+
 export default function AuditPage() {
-  const events = [
-    { action: "Book returned", detail: "Loan #12 marked returned", time: "2 min ago" },
-    { action: "User added", detail: "Jordan Lee added as member", time: "18 min ago" },
-    { action: "Catalog updated", detail: "Copies updated for Clean Code", time: "1 hour ago" },
-    { action: "Loan issued", detail: "Loan #11 created", time: "3 hours ago" },
-    { action: "Role changed", detail: "Casey Morgan promoted to admin", time: "Yesterday" }
+  const { showToast } = useToast();
+  const [events, setEvents] = useState<any[]>([]);
+  const [search, setSearch] = useState("");
+  const [method, setMethod] = useState("all");
+  const [entity, setEntity] = useState("all");
+  const [loading, setLoading] = useState(false);
+
+  const loadEvents = async () => {
+    setLoading(true);
+    try {
+      const params: any = { limit: 300 };
+      if (search.trim()) params.q = search.trim();
+      if (method !== "all") params.method = method;
+      if (entity !== "all") params.entity = entity;
+      const logs = await getAuditLogs(params);
+      setEvents(logs);
+    } catch (err: any) {
+      showToast({
+        type: "error",
+        title: "Unable to load audit logs",
+        description: err.message || "Request failed",
+      });
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  useEffect(() => {
+    loadEvents();
+  }, []);
+
+  const methodOptions = [
+    { value: "all", label: "All methods" },
+    { value: "POST", label: "POST" },
+    { value: "PATCH", label: "PATCH" },
+    { value: "PUT", label: "PUT" },
+    { value: "DELETE", label: "DELETE" },
   ];
+
+  const entityOptions = useMemo(() => {
+    const dynamicEntities = Array.from(new Set(events.map((event) => event.entity).filter(Boolean)));
+    return [
+      { value: "all", label: "All entities" },
+      ...dynamicEntities.map((value) => ({ value, label: String(value) })),
+    ];
+  }, [events]);
 
   return (
     <div className="page-layout">
       <header className="page-header">
         <div>
           <div className="badge">Audit</div>
-          <h1>Operational Timeline</h1>
-          <p className="lede">Review system activity and critical circulation events.</p>
+          <h1>Audit Timeline</h1>
+          <p className="lede">Database-backed request audit log for all mutating API operations.</p>
         </div>
+        <button className="secondary" onClick={loadEvents}>
+          {loading ? "Loading..." : "Refresh"}
+        </button>
       </header>
 
       <section className="table-card">
         <div className="card-header">
-          <h2>Activity Feed</h2>
-          <div className="tag-grid">
-            {["All", "Loans", "Catalog", "Users", "Settings"].map((tag) => (
-              <span key={tag} className="tag">
-                {tag}
-              </span>
-            ))}
+          <h2>Audit Logs</h2>
+          <span className="pill">Persisted in DB</span>
+        </div>
+        <div className="filter-bar">
+          <div className="filter-field grow">
+            <label>Search</label>
+            <input
+              type="search"
+              value={search}
+              onChange={(event) => setSearch(event.target.value)}
+              placeholder="Path, method, role, status, actor, entity id"
+            />
+          </div>
+          <div className="filter-field">
+            <SearchableSelect
+              label="Method"
+              value={method}
+              options={methodOptions}
+              placeholder="Method filter"
+              onChange={setMethod}
+            />
+          </div>
+          <div className="filter-field">
+            <SearchableSelect
+              label="Entity"
+              value={entity}
+              options={entityOptions}
+              placeholder="Entity filter"
+              onChange={setEntity}
+            />
+          </div>
+          <div className="filter-field">
+            <label>&nbsp;</label>
+            <button onClick={loadEvents} className="ghost">
+              Apply Filters
+            </button>
           </div>
         </div>
-        <div className="activity">
+        <div className="table">
           {events.map((event) => (
-            <div key={event.detail} className="activity-item">
+            <div key={event.id} className="row">
               <div>
-                <strong>{event.action}</strong>
+                <strong>{event.method} {event.path}</strong>
                 <div>
-                  <span>{event.detail}</span>
+                  <span>
+                    actor {event.actor_user_id ?? "-"} ({event.actor_role || "-"}) · entity {event.entity || "-"}:{event.entity_id ?? "-"}
+                  </span>
                 </div>
               </div>
-              <span className="activity-time">{event.time}</span>
+              <div>
+                <div className="meta-label">Status</div>
+                <div className="meta-value">{event.status_code}</div>
+                <div className="meta-label">Duration</div>
+                <div className="meta-value">{event.duration_ms.toFixed(2)} ms</div>
+              </div>
+              <div>
+                <div className="meta-label">Timestamp</div>
+                <div className="meta-value">{formatTime(event.created_at)}</div>
+              </div>
             </div>
           ))}
+          {events.length === 0 ? (
+            <div className="row">
+              <div>
+                <strong>No audit logs found.</strong>
+              </div>
+              <div />
+              <div />
+            </div>
+          ) : null}
         </div>
       </section>
     </div>
