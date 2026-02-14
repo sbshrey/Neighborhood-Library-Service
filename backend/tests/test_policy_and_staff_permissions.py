@@ -1,6 +1,7 @@
 import pytest
 
 
+from tests.constants import TEST_AUTH_VALUE
 @pytest.mark.asyncio
 async def test_policy_enforcement_configuration(client, auth_headers):
     current = await client.get("/settings/policy", headers=auth_headers)
@@ -71,7 +72,7 @@ async def test_staff_user_management_permissions(client, auth_headers):
             "name": "Desk Staff",
             "email": "desk-staff@test.dev",
             "role": "staff",
-            "password": "desk-staff-pass",
+            "password": TEST_AUTH_VALUE,
         },
         headers=auth_headers,
     )
@@ -79,7 +80,7 @@ async def test_staff_user_management_permissions(client, auth_headers):
 
     login_staff = await client.post(
         "/auth/login",
-        json={"email": "desk-staff@test.dev", "password": "desk-staff-pass"},
+        json={"email": "desk-staff@test.dev", "password": TEST_AUTH_VALUE},
     )
     assert login_staff.status_code == 200
     staff_headers = {"Authorization": f"Bearer {login_staff.json()['access_token']}"}
@@ -117,7 +118,7 @@ async def test_staff_user_management_permissions(client, auth_headers):
             "name": "Unauthorized Admin",
             "email": "unauthorized-admin@test.dev",
             "role": "admin",
-            "password": "unauthorized-pass",
+            "password": TEST_AUTH_VALUE,
         },
         headers=staff_headers,
     )

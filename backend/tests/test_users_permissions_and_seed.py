@@ -3,6 +3,7 @@ import pytest
 from app.utils.sample_data import seed_sample_data
 
 
+from tests.constants import TEST_AUTH_VALUE
 @pytest.mark.asyncio
 async def test_seed_sample_data_created_then_skipped(db_session):
     created = await seed_sample_data(db_session)
@@ -27,7 +28,7 @@ async def test_users_me_and_borrowed_permissions(client, auth_headers):
             "name": "Member One",
             "email": "member-one@test.dev",
             "role": "member",
-            "password": "member-pass-123",
+            "password": TEST_AUTH_VALUE,
         },
         headers=auth_headers,
     )
@@ -39,7 +40,7 @@ async def test_users_me_and_borrowed_permissions(client, auth_headers):
             "name": "Member Two",
             "email": "member-two@test.dev",
             "role": "member",
-            "password": "member-pass-123",
+            "password": TEST_AUTH_VALUE,
         },
         headers=auth_headers,
     )
@@ -61,7 +62,7 @@ async def test_users_me_and_borrowed_permissions(client, auth_headers):
 
     login_member_two = await client.post(
         "/auth/login",
-        json={"email": "member-two@test.dev", "password": "member-pass-123"},
+        json={"email": "member-two@test.dev", "password": TEST_AUTH_VALUE},
     )
     assert login_member_two.status_code == 200
     member_two_headers = {

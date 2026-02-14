@@ -1,6 +1,7 @@
 import pytest
 
 
+from tests.constants import TEST_AUTH_VALUE
 @pytest.mark.asyncio
 async def test_audit_logs_are_persisted_and_filterable(client):
     bootstrap = await client.post(
@@ -9,14 +10,14 @@ async def test_audit_logs_are_persisted_and_filterable(client):
             "name": "Audit Admin",
             "email": "audit-admin@test.dev",
             "role": "admin",
-            "password": "audit-pass-123",
+            "password": TEST_AUTH_VALUE,
         },
     )
     assert bootstrap.status_code == 201
 
     login = await client.post(
         "/auth/login",
-        json={"email": "audit-admin@test.dev", "password": "audit-pass-123"},
+        json={"email": "audit-admin@test.dev", "password": TEST_AUTH_VALUE},
     )
     assert login.status_code == 200
     admin_headers = {"Authorization": f"Bearer {login.json()['access_token']}"}
@@ -54,14 +55,14 @@ async def test_audit_log_endpoint_is_admin_only(client):
             "name": "Admin User",
             "email": "admin-audit-role@test.dev",
             "role": "admin",
-            "password": "admin-pass-123",
+            "password": TEST_AUTH_VALUE,
         },
     )
     assert bootstrap_admin.status_code == 201
 
     login_admin = await client.post(
         "/auth/login",
-        json={"email": "admin-audit-role@test.dev", "password": "admin-pass-123"},
+        json={"email": "admin-audit-role@test.dev", "password": TEST_AUTH_VALUE},
     )
     assert login_admin.status_code == 200
     admin_headers = {"Authorization": f"Bearer {login_admin.json()['access_token']}"}
@@ -72,7 +73,7 @@ async def test_audit_log_endpoint_is_admin_only(client):
             "name": "Staff User",
             "email": "staff-audit-role@test.dev",
             "role": "staff",
-            "password": "staff-pass-123",
+            "password": TEST_AUTH_VALUE,
         },
         headers=admin_headers,
     )
@@ -80,7 +81,7 @@ async def test_audit_log_endpoint_is_admin_only(client):
 
     login_staff = await client.post(
         "/auth/login",
-        json={"email": "staff-audit-role@test.dev", "password": "staff-pass-123"},
+        json={"email": "staff-audit-role@test.dev", "password": TEST_AUTH_VALUE},
     )
     assert login_staff.status_code == 200
     staff_headers = {"Authorization": f"Bearer {login_staff.json()['access_token']}"}

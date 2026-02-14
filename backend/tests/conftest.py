@@ -10,7 +10,7 @@ from app.db import Base, get_db
 import app.main as app_main
 from app.main import app, login_attempts
 
-TEST_PASSWORD = "unit-test-not-secret"
+from tests.constants import TEST_AUTH_VALUE
 
 
 @pytest.fixture(scope="session")
@@ -84,14 +84,14 @@ async def auth_headers(client):
             "name": "Test Admin",
             "email": "admin@test.dev",
             "role": "admin",
-            "password": TEST_PASSWORD,
+            "password": TEST_AUTH_VALUE,
         },
     )
     assert bootstrap.status_code == 201
 
     login = await client.post(
         "/auth/login",
-        json={"email": "admin@test.dev", "password": TEST_PASSWORD},
+        json={"email": "admin@test.dev", "password": TEST_AUTH_VALUE},
     )
     assert login.status_code == 200
     token = login.json()["access_token"]

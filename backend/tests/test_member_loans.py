@@ -1,6 +1,7 @@
 import pytest
 
 
+from tests.constants import TEST_AUTH_VALUE
 @pytest.mark.asyncio
 async def test_member_can_view_own_loan_history_with_fines(client):
     bootstrap = await client.post(
@@ -9,14 +10,14 @@ async def test_member_can_view_own_loan_history_with_fines(client):
             "name": "Member Admin",
             "email": "member-admin@test.dev",
             "role": "admin",
-            "password": "member-admin-pass",
+            "password": TEST_AUTH_VALUE,
         },
     )
     assert bootstrap.status_code == 201
 
     login_admin = await client.post(
         "/auth/login",
-        json={"email": "member-admin@test.dev", "password": "member-admin-pass"},
+        json={"email": "member-admin@test.dev", "password": TEST_AUTH_VALUE},
     )
     assert login_admin.status_code == 200
     admin_headers = {"Authorization": f"Bearer {login_admin.json()['access_token']}"}
@@ -27,7 +28,7 @@ async def test_member_can_view_own_loan_history_with_fines(client):
             "name": "Member Reader",
             "email": "member-reader@test.dev",
             "role": "member",
-            "password": "member-reader-pass",
+            "password": TEST_AUTH_VALUE,
         },
         headers=admin_headers,
     )
@@ -64,7 +65,7 @@ async def test_member_can_view_own_loan_history_with_fines(client):
 
     login_member = await client.post(
         "/auth/login",
-        json={"email": "member-reader@test.dev", "password": "member-reader-pass"},
+        json={"email": "member-reader@test.dev", "password": TEST_AUTH_VALUE},
     )
     assert login_member.status_code == 200
     member_headers = {"Authorization": f"Bearer {login_member.json()['access_token']}"}

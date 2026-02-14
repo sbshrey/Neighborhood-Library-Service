@@ -1,7 +1,7 @@
 """create books, members, loans
 
 Revision ID: 0001_create_tables
-Revises: 
+Revises:
 Create Date: 2026-02-11
 """
 

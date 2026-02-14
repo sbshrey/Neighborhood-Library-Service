@@ -6,6 +6,7 @@ from sqlalchemy import update
 from app.models import Loan
 
 
+from tests.constants import TEST_AUTH_VALUE
 @pytest.mark.asyncio
 async def test_fine_payment_collection_and_summary(client, db_session):
     bootstrap = await client.post(
@@ -14,14 +15,14 @@ async def test_fine_payment_collection_and_summary(client, db_session):
             "name": "Fine Admin",
             "email": "fine-admin@test.dev",
             "role": "admin",
-            "password": "fine-admin-pass",
+            "password": TEST_AUTH_VALUE,
         },
     )
     assert bootstrap.status_code == 201
 
     login_admin = await client.post(
         "/auth/login",
-        json={"email": "fine-admin@test.dev", "password": "fine-admin-pass"},
+        json={"email": "fine-admin@test.dev", "password": TEST_AUTH_VALUE},
     )
     assert login_admin.status_code == 200
     admin_headers = {"Authorization": f"Bearer {login_admin.json()['access_token']}"}
@@ -32,7 +33,7 @@ async def test_fine_payment_collection_and_summary(client, db_session):
             "name": "Fine Member",
             "email": "fine-member@test.dev",
             "role": "member",
-            "password": "fine-member-pass",
+            "password": TEST_AUTH_VALUE,
         },
         headers=admin_headers,
     )

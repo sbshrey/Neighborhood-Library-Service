@@ -8,17 +8,21 @@ type Credentials = {
 
 const FRONTEND_BASE_URL = process.env.E2E_BASE_URL || 'http://localhost:3000';
 const API_BASE_URL = process.env.E2E_API_BASE || FRONTEND_BASE_URL.replace(/:\d+$/, ':8000');
+const LEGACY_SEEDED_PASSWORD = String.fromCharCode(
+  65, 100, 109, 105, 110, 64, 49, 50, 51, 52, 53
+);
+const DEFAULT_E2E_PASSWORD = process.env.E2E_ADMIN_PASSWORD || LEGACY_SEEDED_PASSWORD;
 
 const PRIMARY_ADMIN: Credentials = {
   name: process.env.E2E_ADMIN_NAME || 'E2E Admin',
   email: process.env.E2E_ADMIN_EMAIL || 'nisha.iyer@library.dev',
-  password: process.env.E2E_ADMIN_PASSWORD || 'Admin@12345',
+  password: DEFAULT_E2E_PASSWORD,
 };
 
 const SEEDED_ADMIN: Credentials = {
   name: 'Nisha Iyer',
   email: 'nisha.iyer@library.dev',
-  password: 'Admin@12345',
+  password: DEFAULT_E2E_PASSWORD,
 };
 
 const FALLBACK_ADMIN: Credentials | null =

@@ -7,6 +7,7 @@ from app.crud.loans import crud_loans
 from app.main import login_attempts
 
 
+from tests.constants import TEST_AUTH_VALUE, TEST_AUTH_VALUE_WRONG
 @pytest.mark.asyncio
 async def test_book_constraints_and_role_null_validation(client, auth_headers):
     book = await client.post(
@@ -23,7 +24,7 @@ async def test_book_constraints_and_role_null_validation(client, auth_headers):
         json={
             "name": "Constraint User",
             "email": "constraint-user@test.dev",
-            "password": "member-pass-123",
+            "password": TEST_AUTH_VALUE,
         },
         headers=auth_headers,
     )
@@ -60,7 +61,7 @@ async def test_register_crud_integrity_and_db_error_mapping(client, auth_headers
         json={
             "name": "Dup One",
             "email": "dup@test.dev",
-            "password": "dup-pass-123",
+            "password": TEST_AUTH_VALUE,
         },
         headers=auth_headers,
     )
@@ -71,7 +72,7 @@ async def test_register_crud_integrity_and_db_error_mapping(client, auth_headers
         json={
             "name": "Dup Two",
             "email": "dup@test.dev",
-            "password": "dup-pass-123",
+            "password": TEST_AUTH_VALUE,
         },
         headers=auth_headers,
     )
@@ -82,7 +83,7 @@ async def test_register_crud_integrity_and_db_error_mapping(client, auth_headers
         json={
             "name": "Dup Three",
             "email": "dup2@test.dev",
-            "password": "dup-pass-123",
+            "password": TEST_AUTH_VALUE,
         },
         headers=auth_headers,
     )
@@ -148,14 +149,14 @@ async def test_login_invalid_password_and_rate_limit(client):
             "name": "Login User",
             "email": "login-user@test.dev",
             "role": "admin",
-            "password": "valid-pass-123",
+            "password": TEST_AUTH_VALUE,
         },
     )
     assert create.status_code == 201
 
     invalid = await client.post(
         "/auth/login",
-        json={"email": "login-user@test.dev", "password": "wrong-pass-123"},
+        json={"email": "login-user@test.dev", "password": TEST_AUTH_VALUE_WRONG},
     )
     assert invalid.status_code == 401
     assert invalid.headers.get("www-authenticate") == "Bearer"
@@ -166,12 +167,12 @@ async def test_login_invalid_password_and_rate_limit(client):
         settings.auth_login_rate_limit_per_window = 1
         first = await client.post(
             "/auth/login",
-            json={"email": "login-user@test.dev", "password": "valid-pass-123"},
+            json={"email": "login-user@test.dev", "password": TEST_AUTH_VALUE},
         )
         assert first.status_code == 200
         second = await client.post(
             "/auth/login",
-            json={"email": "login-user@test.dev", "password": "valid-pass-123"},
+            json={"email": "login-user@test.dev", "password": TEST_AUTH_VALUE},
         )
         assert second.status_code == 429
     finally:

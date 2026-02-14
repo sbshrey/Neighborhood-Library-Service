@@ -13,6 +13,7 @@ from app.schemas.policy import PolicyUpdate
 from app.schemas.users import UserCreate
 
 
+from tests.constants import TEST_AUTH_VALUE
 @pytest.mark.asyncio
 async def test_crud_loans_list_update_and_return_edges(db_session):
     await crud_policies.update(
@@ -30,7 +31,7 @@ async def test_crud_loans_list_update_and_return_edges(db_session):
             name="Direct CRUD User",
             email="direct-crud-user@test.dev",
             role="member",
-            password="member-pass-123",
+            password=TEST_AUTH_VALUE,
         ),
     )
     book = await crud_books.create(
@@ -106,7 +107,7 @@ async def test_crud_loan_remove_paths(db_session):
             name="Remove User",
             email="remove-user@test.dev",
             role="member",
-            password="member-pass-123",
+            password=TEST_AUTH_VALUE,
         ),
     )
     book = await crud_books.create(

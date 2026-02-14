@@ -3,6 +3,7 @@ from datetime import datetime
 import pytest
 
 
+from tests.constants import TEST_AUTH_VALUE
 async def _create_book(client, auth_headers, title="Edge Book", copies=1):
     response = await client.post(
         "/books",
@@ -16,7 +17,7 @@ async def _create_book(client, auth_headers, title="Edge Book", copies=1):
 async def _create_user(client, auth_headers, name, email):
     response = await client.post(
         "/users",
-        json={"name": name, "email": email, "password": "member-pass-123"},
+        json={"name": name, "email": email, "password": TEST_AUTH_VALUE},
         headers=auth_headers,
     )
     assert response.status_code == 201

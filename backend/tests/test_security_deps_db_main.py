@@ -13,6 +13,7 @@ from app.deps import (
 )
 from app.schemas.users import UserCreate
 from app.utils.security import create_access_token, decode_access_token
+from tests.constants import TEST_AUTH_VALUE
 
 
 @pytest.mark.asyncio
@@ -52,7 +53,7 @@ async def test_require_admin_or_bootstrap_paths(db_session):
             name="Member",
             email="member@test.dev",
             role="member",
-            password="member-pass-123",
+            password=TEST_AUTH_VALUE,
         ),
     )
     await db_session.commit()
@@ -74,7 +75,7 @@ async def test_require_admin_or_bootstrap_paths(db_session):
             name="Admin",
             email="admin@test.dev",
             role="admin",
-            password="admin-pass-123",
+            password=TEST_AUTH_VALUE,
         ),
     )
     await db_session.commit()
@@ -93,7 +94,7 @@ async def test_require_admin_or_bootstrap_for_user_create_paths(db_session):
                 name="First",
                 email="first@test.dev",
                 role="member",
-                password="first-pass-123",
+                password=TEST_AUTH_VALUE,
             ),
             db=db_session,
             token=None,
@@ -105,7 +106,7 @@ async def test_require_admin_or_bootstrap_for_user_create_paths(db_session):
             name="First Admin",
             email="first-admin@test.dev",
             role="admin",
-            password="admin-pass-123",
+            password=TEST_AUTH_VALUE,
         ),
         db=db_session,
         token=None,
@@ -118,7 +119,7 @@ async def test_require_admin_or_bootstrap_for_user_create_paths(db_session):
             name="Admin",
             email="admin2@test.dev",
             role="admin",
-            password="admin-pass-123",
+            password=TEST_AUTH_VALUE,
         ),
     )
     member = await crud_users.create(
@@ -127,14 +128,14 @@ async def test_require_admin_or_bootstrap_for_user_create_paths(db_session):
             name="Member",
             email="member2@test.dev",
             role="member",
-            password="member-pass-123",
+            password=TEST_AUTH_VALUE,
         ),
     )
     await db_session.commit()
 
     with pytest.raises(HTTPException) as no_token:
         await require_admin_or_bootstrap_for_user_create(
-            payload=UserCreate(name="X", email="x@test.dev", role="member", password="pass-12345"),
+            payload=UserCreate(name="X", email="x@test.dev", role="member", password=TEST_AUTH_VALUE),
             db=db_session,
             token=None,
         )
@@ -146,7 +147,7 @@ async def test_require_admin_or_bootstrap_for_user_create_paths(db_session):
                 name="Admin Bootstrap Attempt",
                 email="bootstrap-attempt@test.dev",
                 role="admin",
-                password="admin-pass-123",
+                password=TEST_AUTH_VALUE,
             ),
             db=db_session,
             token=None,
@@ -158,7 +159,7 @@ async def test_require_admin_or_bootstrap_for_user_create_paths(db_session):
     )
     with pytest.raises(HTTPException) as non_admin:
         await require_admin_or_bootstrap_for_user_create(
-            payload=UserCreate(name="Y", email="y@test.dev", role="member", password="pass-12345"),
+            payload=UserCreate(name="Y", email="y@test.dev", role="member", password=TEST_AUTH_VALUE),
             db=db_session,
             token=member_token,
         )
@@ -168,7 +169,7 @@ async def test_require_admin_or_bootstrap_for_user_create_paths(db_session):
         user_id=admin.id, role=admin.role, subject=admin.email or str(admin.id)
     )
     result = await require_admin_or_bootstrap_for_user_create(
-        payload=UserCreate(name="Z", email="z@test.dev", role="member", password="pass-12345"),
+        payload=UserCreate(name="Z", email="z@test.dev", role="member", password=TEST_AUTH_VALUE),
         db=db_session,
         token=admin_token,
     )

@@ -4,6 +4,7 @@ from app.models import Book, Loan
 from app.utils.request_context import get_actor_role, get_actor_user_id
 
 
+from tests.constants import TEST_AUTH_VALUE
 @pytest.mark.asyncio
 async def test_created_by_and_updated_by_are_stamped(client, db_session, auth_headers):
     create_book = await client.post(
@@ -39,7 +40,7 @@ async def test_loan_audit_fields_track_staff_actor(client, db_session, auth_head
             "name": "Field Staff",
             "email": "field-staff@test.dev",
             "role": "staff",
-            "password": "field-staff-pass",
+            "password": TEST_AUTH_VALUE,
         },
         headers=auth_headers,
     )
@@ -62,7 +63,7 @@ async def test_loan_audit_fields_track_staff_actor(client, db_session, auth_head
 
     login_staff = await client.post(
         "/auth/login",
-        json={"email": "field-staff@test.dev", "password": "field-staff-pass"},
+        json={"email": "field-staff@test.dev", "password": TEST_AUTH_VALUE},
     )
     assert login_staff.status_code == 200
     staff_headers = {"Authorization": f"Bearer {login_staff.json()['access_token']}"}
