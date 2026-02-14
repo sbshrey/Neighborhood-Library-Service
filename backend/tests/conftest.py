@@ -7,7 +7,7 @@ from httpx import AsyncClient
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker, create_async_engine
 
 from app.db import Base, get_db
-from app.main import app
+from app.main import app, login_attempts
 
 TEST_PASSWORD = "unit-test-not-secret"
 
@@ -59,6 +59,13 @@ async def client(db_session):
     async with AsyncClient(app=app, base_url="http://test") as ac:
         yield ac
     app.dependency_overrides.clear()
+
+
+@pytest.fixture(autouse=True)
+def clear_login_rate_limiter_state():
+    login_attempts.clear()
+    yield
+    login_attempts.clear()
 
 
 @pytest.fixture(scope="function")

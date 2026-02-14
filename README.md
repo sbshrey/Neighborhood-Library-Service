@@ -171,6 +171,10 @@ E2E_BASE_URL=http://localhost:3000 npm run test:e2e
 ## Notes
 - Error handling covers common edge cases (borrowing unavailable books, returning twice, deleting with active loans).
 - CORS is configurable via `CORS_ORIGINS` in `backend/.env` (comma-separated list).
+- Login endpoint rate limiting is configurable via:
+  - `AUTH_LOGIN_RATE_LIMIT_PER_WINDOW`
+  - `AUTH_LOGIN_RATE_LIMIT_WINDOW_SECONDS`
+- Audit logs are emitted for mutating API calls and can be toggled with `AUDIT_LOG_ENABLED`.
 
 ## Tests (80%+ Coverage)
 ```bash
@@ -179,6 +183,10 @@ PYTHONPATH=../backend pytest
 ```
 
 Coverage HTML report will be generated in `backend/htmlcov`.
+
+## CI and Security
+- GitHub Actions workflow (`.github/workflows/ci.yml`) runs backend tests and frontend build on push/PR.
+- GitHub Actions workflow (`.github/workflows/secret-scan.yml`) runs Gitleaks on push/PR and daily schedule.
 
 ## What To Demo
 1. Create a few books and users in the UI.

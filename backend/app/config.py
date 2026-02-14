@@ -27,6 +27,9 @@ class Settings(BaseSettings):
     jwt_algorithm: str = "HS256"
     jwt_access_token_expires_minutes: int = 120
     default_user_password: str = "set_in_env_for_dev_only"
+    auth_login_rate_limit_per_window: int = 20
+    auth_login_rate_limit_window_seconds: int = 60
+    audit_log_enabled: bool = True
 
 
 def _ensure_async_driver(url: str) -> str:
