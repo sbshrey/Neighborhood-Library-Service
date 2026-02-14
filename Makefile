@@ -1,7 +1,7 @@
 SHELL := /bin/bash
 .DEFAULT_GOAL := help
 
-.PHONY: help install install-backend install-frontend migrate backend frontend up up-fast up-e2e up-e2e-visual test-backend test-e2e test-e2e-visual report clean reset-db rebuild-db
+.PHONY: help install install-backend install-frontend migrate backend frontend up up-fast up-e2e up-e2e-visual test-backend test-e2e test-e2e-visual precommit-install precommit report clean reset-db rebuild-db
 
 DB_HOST ?= localhost
 DB_PORT ?= 5432
@@ -48,6 +48,12 @@ test-e2e: ## Run Playwright tests (expects services already running)
 
 test-e2e-visual: ## Run headed Playwright visual tests
 	cd frontend && npm run test:e2e:visual
+
+precommit-install: ## Install local git pre-commit hooks
+	uvx pre-commit install
+
+precommit: ## Run pre-commit hooks on all files
+	uvx pre-commit run --all-files
 
 report: ## Open Playwright HTML report
 	cd frontend && npm run test:e2e:report

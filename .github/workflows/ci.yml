@@ -13,9 +13,25 @@ on:
         type: boolean
 
 jobs:
+  pre-commit:
+    name: Pre-Commit Hooks
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.10"
+
+      - name: Run pre-commit
+        uses: pre-commit/action@v3.0.1
+
   backend:
     name: Backend Tests
     runs-on: ubuntu-latest
+    needs: pre-commit
     defaults:
       run:
         working-directory: backend
@@ -43,6 +59,7 @@ jobs:
   frontend:
     name: Frontend Build
     runs-on: ubuntu-latest
+    needs: pre-commit
     defaults:
       run:
         working-directory: frontend

@@ -57,6 +57,7 @@ make backend
 make up-fast
 make test-backend
 make test-e2e
+make precommit
 make clean
 make reset-db CONFIRM=YES
 ```
@@ -259,10 +260,30 @@ cd backend
 uv run pytest
 ```
 
+## Pre-Commit Hooks
+Install local hooks:
+```bash
+uvx pre-commit install
+```
+
+Run all hooks manually:
+```bash
+uvx pre-commit run --all-files
+```
+
+Makefile shortcuts:
+```bash
+make precommit-install
+make precommit
+```
+
 Coverage HTML report will be generated in `backend/htmlcov`.
 
 ## CI and Security
-- GitHub Actions workflow (`.github/workflows/ci.yml`) runs backend tests and frontend build on push/PR.
+- GitHub Actions workflow (`.github/workflows/ci.yml`) runs:
+  - pre-commit hooks on all files
+  - backend tests + coverage gate
+  - frontend build
 - Optional Playwright smoke test can be triggered manually via **Actions → CI → Run workflow** and enabling `run_e2e_smoke`.
 - GitHub Actions workflow (`.github/workflows/secret-scan.yml`) runs Gitleaks on push/PR and daily schedule.
 
