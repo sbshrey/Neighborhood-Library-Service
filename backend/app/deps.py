@@ -89,6 +89,11 @@ async def require_admin_or_bootstrap_for_user_create(
         return None
 
     if not token:
+        if payload.role == "admin":
+            raise HTTPException(
+                status_code=status.HTTP_409_CONFLICT,
+                detail="Bootstrap already completed. Please sign in with an existing admin user.",
+            )
         raise _auth_error()
     user = await _resolve_user_from_token(db, token)
     if user.role != "admin":

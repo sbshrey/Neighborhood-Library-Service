@@ -140,6 +140,19 @@ async def test_require_admin_or_bootstrap_for_user_create_paths(db_session):
         )
     assert no_token.value.status_code == 401
 
+    with pytest.raises(HTTPException) as bootstrap_done:
+        await require_admin_or_bootstrap_for_user_create(
+            payload=UserCreate(
+                name="Admin Bootstrap Attempt",
+                email="bootstrap-attempt@test.dev",
+                role="admin",
+                password="admin-pass-123",
+            ),
+            db=db_session,
+            token=None,
+        )
+    assert bootstrap_done.value.status_code == 409
+
     member_token = create_access_token(
         user_id=member.id, role=member.role, subject=member.email or str(member.id)
     )
