@@ -13,3 +13,6 @@ htmlcov/
 frontend/.next/
 frontend/test-results/
 frontend/playwright-report/
+.run-logs/
+.uv-cache/
+.pre-commit-cache/

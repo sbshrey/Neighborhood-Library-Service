@@ -2,6 +2,8 @@ CREATE TABLE IF NOT EXISTS books (
   id SERIAL PRIMARY KEY,
   title VARCHAR(200) NOT NULL,
   author VARCHAR(200) NOT NULL,
+  subject VARCHAR(120),
+  rack_number VARCHAR(64),
   isbn VARCHAR(32) UNIQUE,
   published_year INTEGER,
   copies_total INTEGER NOT NULL,
@@ -15,6 +17,7 @@ CREATE TABLE IF NOT EXISTS users (
   name VARCHAR(200) NOT NULL,
   email VARCHAR(200) UNIQUE,
   phone VARCHAR(40),
+  password_hash VARCHAR(255) NOT NULL,
   role VARCHAR(30) NOT NULL DEFAULT 'member',
   created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
 );
@@ -29,3 +32,4 @@ CREATE TABLE IF NOT EXISTS loans (
 );
 
 CREATE INDEX IF NOT EXISTS idx_loans_active ON loans(book_id, user_id) WHERE returned_at IS NULL;
+CREATE INDEX IF NOT EXISTS ix_books_subject ON books(subject);

@@ -8,6 +8,8 @@ import { AuthUser, clearAuth, getStoredToken, getStoredUser, setStoredUser } fro
 import SidebarNav from "./SidebarNav";
 import ToastProvider from "./ToastProvider";
 
+const adminOnlyRoutes = ["/settings", "/catalog", "/users", "/roles", "/audit"];
+
 export default function AppShell({ children }: { children: React.ReactNode }) {
   const pathname = usePathname();
   const router = useRouter();
@@ -42,6 +44,23 @@ export default function AppShell({ children }: { children: React.ReactNode }) {
       try {
         const me = await getMe();
         if (!mounted) return;
+        if (!["admin", "staff", "member"].includes(me.role)) {
+          clearAuth();
+          router.replace("/login");
+          return;
+        }
+        if (me.role === "member" && pathname !== "/member") {
+          router.replace("/member");
+          return;
+        }
+        if (me.role !== "member" && pathname === "/member") {
+          router.replace("/");
+          return;
+        }
+        if (adminOnlyRoutes.includes(pathname) && me.role !== "admin") {
+          router.replace(me.role === "member" ? "/member" : "/");
+          return;
+        }
         setStoredUser(me);
         setUser(me);
       } catch {
@@ -96,18 +115,18 @@ export default function AppShell({ children }: { children: React.ReactNode }) {
               <div className="brand-subtitle">Library Service</div>
             </div>
           </div>
-          <SidebarNav />
+          <SidebarNav user={user} />
           <div className="sidebar-footer">
             <div className="sidebar-user">
               <div className="meta-label">Signed in</div>
               <div className="meta-value">{user?.name || "Unknown user"}</div>
               <div className="brand-subtitle">{user?.role || "member"}</div>
-              <button className="ghost" onClick={onLogout}>
+              <button className="ghost" onClick={onLogout} data-testid="logout-btn">
                 Logout
               </button>
             </div>
             <div className="sidebar-note">
-              Operational console for catalog, users, and circulation tracking.
+              Library workspace for circulation operations and member loan tracking.
             </div>
           </div>
         </aside>

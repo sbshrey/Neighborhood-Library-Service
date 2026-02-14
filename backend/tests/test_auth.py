@@ -1,6 +1,6 @@
 import pytest
 
-TEST_PASSWORD = "unit-test-not-secret"
+from tests.constants import TEST_AUTH_VALUE
 
 
 @pytest.mark.asyncio
@@ -11,14 +11,14 @@ async def test_login_and_me(client):
             "name": "Bootstrap Admin",
             "email": "bootstrap@library.dev",
             "role": "admin",
-            "password": TEST_PASSWORD,
+            "password": TEST_AUTH_VALUE,
         },
     )
     assert create.status_code == 201
 
     login = await client.post(
         "/auth/login",
-        json={"email": "bootstrap@library.dev", "password": TEST_PASSWORD},
+        json={"email": "bootstrap@library.dev", "password": TEST_AUTH_VALUE},
     )
     assert login.status_code == 200
     token = login.json()["access_token"]

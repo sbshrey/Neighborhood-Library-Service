@@ -65,7 +65,7 @@ export default function LoginPage() {
       <div className="badge">Authentication</div>
       <h1>Sign In</h1>
       <p className="lede">
-        Access the Neighborhood Library operational console with your user credentials.
+        Sign in as admin, staff, or member to access your library workspace.
       </p>
 
       <form onSubmit={onSubmit} data-testid="login-form">
@@ -118,7 +118,7 @@ export default function LoginPage() {
         </p>
       )}
       <p className="footer">
-        First run: enter Name, Email, and Password, then click Bootstrap Admin.
+        First run only: use Bootstrap Admin once. Members can sign in after account creation.
       </p>
     </section>
   );

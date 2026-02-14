@@ -7,9 +7,10 @@ from httpx import AsyncClient
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker, create_async_engine
 
 from app.db import Base, get_db
-from app.main import app
+import app.main as app_main
+from app.main import app, login_attempts
 
-TEST_PASSWORD = "unit-test-not-secret"
+from tests.constants import TEST_AUTH_VALUE
 
 
 @pytest.fixture(scope="session")
@@ -45,6 +46,12 @@ async def db_session(test_engine):
 
 @pytest.fixture(scope="function")
 async def client(db_session):
+    audit_session_local = async_sessionmaker(
+        bind=db_session.bind, class_=AsyncSession, autoflush=False, expire_on_commit=False
+    )
+    original_audit_session_local = app_main.SessionLocal
+    app_main.SessionLocal = audit_session_local
+
     async def _override_get_db():
         try:
             yield db_session
@@ -59,6 +66,14 @@ async def client(db_session):
     async with AsyncClient(app=app, base_url="http://test") as ac:
         yield ac
     app.dependency_overrides.clear()
+    app_main.SessionLocal = original_audit_session_local
+
+
+@pytest.fixture(autouse=True)
+def clear_login_rate_limiter_state():
+    login_attempts.clear()
+    yield
+    login_attempts.clear()
 
 
 @pytest.fixture(scope="function")
@@ -69,14 +84,14 @@ async def auth_headers(client):
             "name": "Test Admin",
             "email": "admin@test.dev",
             "role": "admin",
-            "password": TEST_PASSWORD,
+            "password": TEST_AUTH_VALUE,
         },
     )
     assert bootstrap.status_code == 201
 
     login = await client.post(
         "/auth/login",
-        json={"email": "admin@test.dev", "password": TEST_PASSWORD},
+        json={"email": "admin@test.dev", "password": TEST_AUTH_VALUE},
     )
     assert login.status_code == 200
     token = login.json()["access_token"]
