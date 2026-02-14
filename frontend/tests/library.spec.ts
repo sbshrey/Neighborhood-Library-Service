@@ -255,6 +255,8 @@ test.describe('Neighborhood Library Demo Journeys', () => {
       await page.goto('/catalog');
       const importedBookRow = page.getByTestId('book-row').filter({ hasText: importedBookTitle }).first();
       await expect(importedBookRow).toBeVisible();
+      await page.getByTestId('book-open-create').click();
+      await expect(page.getByTestId('book-action-modal')).toBeVisible();
       await page.getByTestId('book-title').fill(bookTitle);
       await page.getByTestId('book-author').fill('Eric Evans');
       await page.getByTestId('book-isbn').fill(`978032112${String(Math.floor(Math.random() * 100000)).padStart(5, '0')}`);
@@ -270,6 +272,8 @@ test.describe('Neighborhood Library Demo Journeys', () => {
 
     await test.step('Create a staff user from UI', async () => {
       await page.goto('/users');
+      await page.getByTestId('user-open-create').click();
+      await expect(page.getByTestId('user-action-modal')).toBeVisible();
       await page.getByTestId('user-name').fill('Demo Staff UI');
       await page.getByTestId('user-email').fill(staffEmail);
       await page.getByTestId('user-phone').fill('9000000001');

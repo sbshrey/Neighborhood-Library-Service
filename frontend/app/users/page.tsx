@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
+import ActionModal from "../../components/ActionModal";
 import SearchableSelect from "../../components/SearchableSelect";
 import { useToast } from "../../components/ToastProvider";
 import { createUser, deleteUser, getUsers, updateUser } from "../../lib/api";
@@ -12,14 +13,17 @@ const initialUserForm = {
   role: "member",
 };
 
+type UserModalMode = "create" | "edit" | null;
+
 export default function UsersPage() {
   const { showToast } = useToast();
   const [users, setUsers] = useState<any[]>([]);
   const [roleFilter, setRoleFilter] = useState("all");
   const [search, setSearch] = useState("");
+
+  const [modalMode, setModalMode] = useState<UserModalMode>(null);
+  const [activeUserId, setActiveUserId] = useState<number | null>(null);
   const [userForm, setUserForm] = useState(initialUserForm);
-  const [editingId, setEditingId] = useState<number | null>(null);
-  const [editForm, setEditForm] = useState(initialUserForm);
 
   const refresh = async (showSuccess = false) => {
     try {
@@ -71,48 +75,54 @@ export default function UsersPage() {
     });
   }, [users, roleFilter, search]);
 
-  const handleCreateUser = async (event: React.FormEvent) => {
-    event.preventDefault();
-    try {
-      await createUser(userForm);
-      setUserForm(initialUserForm);
-      showToast({ type: "success", title: "User created successfully" });
-      refresh();
-    } catch (err: any) {
-      showToast({
-        type: "error",
-        title: "Unable to create user",
-        description: err.message || "Request failed",
-      });
-    }
+  const closeModal = () => setModalMode(null);
+
+  const openCreateModal = () => {
+    setActiveUserId(null);
+    setUserForm(initialUserForm);
+    setModalMode("create");
   };
 
-  const openEditor = (user: any) => {
-    setEditingId(user.id);
-    setEditForm({
+  const openEditModal = (user: any) => {
+    setActiveUserId(user.id);
+    setUserForm({
       name: user.name || "",
       email: user.email || "",
       phone: user.phone || "",
       role: user.role || "member",
     });
+    setModalMode("edit");
   };
 
-  const handleSaveEdit = async (event: React.FormEvent) => {
+  const handleUserSubmit = async (event: React.FormEvent) => {
     event.preventDefault();
-    if (!editingId) return;
     try {
-      await updateUser(editingId, {
-        name: editForm.name.trim(),
-        email: editForm.email.trim() || null,
-        phone: editForm.phone.trim() || null,
-        role: editForm.role,
-      });
-      showToast({ type: "success", title: "User updated successfully" });
+      if (modalMode === "edit") {
+        if (!activeUserId) return;
+        await updateUser(activeUserId, {
+          name: userForm.name.trim(),
+          email: userForm.email.trim() || null,
+          phone: userForm.phone.trim() || null,
+          role: userForm.role,
+        });
+        showToast({ type: "success", title: "User updated successfully" });
+      } else {
+        await createUser({
+          name: userForm.name.trim(),
+          email: userForm.email.trim() || undefined,
+          phone: userForm.phone.trim() || undefined,
+          role: userForm.role,
+        });
+        showToast({ type: "success", title: "User created successfully" });
+      }
+      closeModal();
+      setActiveUserId(null);
+      setUserForm(initialUserForm);
       await refresh();
     } catch (err: any) {
       showToast({
         type: "error",
-        title: "Unable to update user",
+        title: modalMode === "edit" ? "Unable to update user" : "Unable to create user",
         description: err.message || "Request failed",
       });
     }
@@ -123,11 +133,11 @@ export default function UsersPage() {
     if (!ok) return;
     try {
       await deleteUser(user.id);
-      if (editingId === user.id) {
-        setEditingId(null);
+      if (activeUserId === user.id) {
+        setActiveUserId(null);
       }
       showToast({ type: "success", title: "User deleted successfully" });
-      refresh();
+      await refresh();
     } catch (err: any) {
       showToast({
         type: "error",
@@ -137,17 +147,31 @@ export default function UsersPage() {
     }
   };
 
+  const modalTitle = modalMode === "edit" ? "Edit User" : "Add User";
+  const modalSubtitle =
+    modalMode === "edit"
+      ? `User ID ${activeUserId ?? "-"} • Update account details and role`
+      : "Create a new member, staff, or admin account";
+
   return (
     <div className="page-layout">
       <header className="page-header">
         <div>
           <div className="badge">Users</div>
           <h1>User Administration</h1>
-          <p className="lede">Search and update member/staff records, then create new users from the same workspace.</p>
+          <p className="lede">
+            Search and update member/staff records, then create new users from the same
+            workspace.
+          </p>
         </div>
-        <button className="secondary" onClick={() => refresh(true)}>
-          Refresh
-        </button>
+        <div className="page-actions">
+          <button type="button" onClick={openCreateModal} data-testid="user-open-create">
+            Add User
+          </button>
+          <button className="secondary" onClick={() => refresh(true)}>
+            Refresh
+          </button>
+        </div>
       </header>
 
       <section className="stat-grid">
@@ -169,140 +193,148 @@ export default function UsersPage() {
         </div>
       </section>
 
-      <section className="dashboard-grid">
-        <div className="table-card">
-          <div className="card-header">
-            <h2>User Directory</h2>
-            <span className="pill">Searchable</span>
+      <section className="table-card">
+        <div className="card-header">
+          <h2>User Directory</h2>
+          <span className="pill">Searchable</span>
+        </div>
+        <div className="filter-bar">
+          <div className="filter-field grow">
+            <label>Search</label>
+            <input
+              type="search"
+              value={search}
+              onChange={(event) => setSearch(event.target.value)}
+              placeholder="Name, email, phone, user ID"
+            />
           </div>
-          <div className="filter-bar">
-            <div className="filter-field grow">
-              <label>Search</label>
-              <input
-                type="search"
-                value={search}
-                onChange={(event) => setSearch(event.target.value)}
-                placeholder="Name, email, phone, user ID"
-              />
-            </div>
-            <div className="filter-field">
-              <SearchableSelect
-                label="Role"
-                value={roleFilter}
-                options={roleFilterOptions}
-                placeholder="Filter by role"
-                onChange={setRoleFilter}
-                testId="users-role-filter"
-              />
-            </div>
-          </div>
-          <div className="table">
-            {visibleUsers.map((user) => (
-              <div key={user.id} className={`row ${editingId === user.id ? "row-highlight" : ""}`} data-testid="user-row" data-user-id={user.id}>
-                <div>
-                  <strong>{user.name}</strong>
-                  <div>
-                    <span>{user.email || "-"}</span>
-                  </div>
-                  <div>
-                    <span>{user.phone || "-"}</span>
-                  </div>
-                </div>
-                <div>
-                  <div className="meta-label">Role</div>
-                  <div className="meta-value">{user.role}</div>
-                </div>
-                <div className="row-meta">
-                  <div className="meta-pair">
-                    <div className="meta-label">User ID</div>
-                    <div className="meta-value">{user.id}</div>
-                  </div>
-                  <div className="row-actions">
-                    <button className="ghost small" type="button" onClick={() => openEditor(user)}>
-                      Edit
-                    </button>
-                    <button className="danger small" type="button" onClick={() => handleDeleteUser(user)}>
-                      Delete
-                    </button>
-                  </div>
-                </div>
-              </div>
-            ))}
-            {visibleUsers.length === 0 && (
-              <div className="row">
-                <div>
-                  <strong>No users match the active search and role filters.</strong>
-                </div>
-                <div />
-                <div />
-              </div>
-            )}
+          <div className="filter-field">
+            <SearchableSelect
+              label="Role"
+              value={roleFilter}
+              options={roleFilterOptions}
+              placeholder="Filter by role"
+              onChange={setRoleFilter}
+              testId="users-role-filter"
+            />
           </div>
         </div>
-
-        <aside className="panel-stack">
-          <div className="panel-card">
-            <h2>Add User</h2>
-            <form onSubmit={handleCreateUser} data-testid="user-form">
+        <div className="table">
+          {visibleUsers.map((user) => (
+            <div
+              key={user.id}
+              className={`row ${
+                activeUserId === user.id && modalMode === "edit" ? "row-highlight" : ""
+              }`}
+              data-testid="user-row"
+              data-user-id={user.id}
+            >
               <div>
-                <label>Name</label>
-                <input data-testid="user-name" value={userForm.name} onChange={(event) => setUserForm({ ...userForm, name: event.target.value })} required />
+                <strong>{user.name}</strong>
+                <div>
+                  <span>{user.email || "-"}</span>
+                </div>
+                <div>
+                  <span>{user.phone || "-"}</span>
+                </div>
               </div>
               <div>
-                <label>Email</label>
-                <input data-testid="user-email" value={userForm.email} onChange={(event) => setUserForm({ ...userForm, email: event.target.value })} />
+                <div className="meta-label">Role</div>
+                <div className="meta-value">{user.role}</div>
               </div>
-              <div>
-                <label>Phone</label>
-                <input data-testid="user-phone" value={userForm.phone} onChange={(event) => setUserForm({ ...userForm, phone: event.target.value })} />
+              <div className="row-meta">
+                <div className="meta-pair">
+                  <div className="meta-label">User ID</div>
+                  <div className="meta-value">{user.id}</div>
+                </div>
+                <div className="row-actions">
+                  <button
+                    className="ghost small"
+                    type="button"
+                    onClick={() => openEditModal(user)}
+                  >
+                    Edit
+                  </button>
+                  <button
+                    className="danger small"
+                    type="button"
+                    onClick={() => handleDeleteUser(user)}
+                  >
+                    Delete
+                  </button>
+                </div>
               </div>
-              <div>
-                <label>Role</label>
-                <select data-testid="user-role" value={userForm.role} onChange={(event) => setUserForm({ ...userForm, role: event.target.value })}>
-                  <option value="member">Member</option>
-                  <option value="staff">Staff</option>
-                  <option value="admin">Admin</option>
-                </select>
-              </div>
-              <button type="submit" data-testid="user-submit">
-                Add User
-              </button>
-            </form>
-          </div>
-
-          <div className="panel-card">
-            <div className="card-header">
-              <h2>Edit User</h2>
-              <span className="pill">{editingId ? `User ${editingId}` : "Select from list"}</span>
             </div>
-            <form onSubmit={handleSaveEdit}>
+          ))}
+          {visibleUsers.length === 0 && (
+            <div className="row">
               <div>
-                <label>Name</label>
-                <input value={editForm.name} onChange={(event) => setEditForm({ ...editForm, name: event.target.value })} disabled={!editingId} required />
+                <strong>No users match the active search and role filters.</strong>
               </div>
-              <div>
-                <label>Email</label>
-                <input value={editForm.email} onChange={(event) => setEditForm({ ...editForm, email: event.target.value })} disabled={!editingId} />
-              </div>
-              <div>
-                <label>Phone</label>
-                <input value={editForm.phone} onChange={(event) => setEditForm({ ...editForm, phone: event.target.value })} disabled={!editingId} />
-              </div>
-              <div>
-                <label>Role</label>
-                <select value={editForm.role} onChange={(event) => setEditForm({ ...editForm, role: event.target.value })} disabled={!editingId}>
-                  <option value="member">Member</option>
-                  <option value="staff">Staff</option>
-                  <option value="admin">Admin</option>
-                </select>
-              </div>
-              <button type="submit" disabled={!editingId}>
-                Save Changes
-              </button>
-            </form>
-          </div>
-        </aside>
+              <div />
+              <div />
+            </div>
+          )}
+        </div>
       </section>
+
+      <ActionModal
+        open={modalMode !== null}
+        title={modalTitle}
+        subtitle={modalSubtitle}
+        onClose={closeModal}
+        testId="user-action-modal"
+      >
+        <form onSubmit={handleUserSubmit} data-testid="user-form">
+          <div>
+            <label>Name</label>
+            <input
+              data-testid="user-name"
+              value={userForm.name}
+              onChange={(event) => setUserForm({ ...userForm, name: event.target.value })}
+              required
+            />
+          </div>
+          <div className="form-grid-2">
+            <div>
+              <label>Email</label>
+              <input
+                data-testid="user-email"
+                value={userForm.email}
+                onChange={(event) => setUserForm({ ...userForm, email: event.target.value })}
+              />
+            </div>
+            <div>
+              <label>Phone</label>
+              <input
+                data-testid="user-phone"
+                value={userForm.phone}
+                onChange={(event) => setUserForm({ ...userForm, phone: event.target.value })}
+              />
+            </div>
+          </div>
+          <div>
+            <label>Role</label>
+            <select
+              data-testid="user-role"
+              value={userForm.role}
+              onChange={(event) => setUserForm({ ...userForm, role: event.target.value })}
+            >
+              <option value="member">Member</option>
+              <option value="staff">Staff</option>
+              <option value="admin">Admin</option>
+            </select>
+          </div>
+          <div className="modal-actions">
+            <button type="button" className="secondary" onClick={closeModal}>
+              Cancel
+            </button>
+            <button type="submit" data-testid="user-submit">
+              {modalMode === "edit" ? "Save Changes" : "Add User"}
+            </button>
+          </div>
+        </form>
+      </ActionModal>
     </div>
   );
 }
