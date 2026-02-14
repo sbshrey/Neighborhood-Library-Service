@@ -13,61 +13,31 @@ A full‑stack take‑home implementation for managing books, users, and lending
 - Onboarding supports bulk import via CSV/XLSX for books, users, and loans.
 
 ## Tech Stack
-- **Backend:** Python, FastAPI, SQLAlchemy, PostgreSQL
+- **Backend:** Python, FastAPI, SQLAlchemy, PostgreSQL, **uv** (package/runtime manager)
 - **Frontend:** Next.js (React)
 
 ## Repository Layout
 - `backend/` Python API server
 - `frontend/` Next.js minimal UI
-- `docker-compose.yml` local PostgreSQL
 
 ---
 
 ## Backend
 
-### 1) Start Postgres
-
-**Docker**
+### 1) Start local PostgreSQL (no Docker/Podman)
+Ensure PostgreSQL is running on `localhost:5432` and create the DB/user:
 ```bash
-docker compose up -d
+psql -U postgres -h localhost -c "CREATE USER nls_user WITH PASSWORD '<your_local_password>';"
+psql -U postgres -h localhost -c "CREATE DATABASE neighborhood_library OWNER nls_user;"
 ```
 
-**Podman (preferred if you already have Podman installed)**
+### 2) Install `uv` and backend dependencies
 ```bash
-# macOS only
-podman machine start
+# macOS
+brew install uv
 
-# Compose compatible
-podman compose up -d
-```
-
-If `podman compose` is not available, install `podman-compose` and run:
-```bash
-podman-compose up -d
-```
-
-If you don’t want to install a compose provider, run PostgreSQL directly:
-```bash
-podman run -d --name nls-postgres \
-  -e POSTGRES_DB=neighborhood_library \
-  -e POSTGRES_USER=nls_user \
-  -e POSTGRES_PASSWORD=<your_local_password> \
-  -p 5432:5432 \
-  -v nls_pgdata:/var/lib/postgresql/data \
-  docker.io/library/postgres:15
-```
-
-To stop/remove it later:
-```bash
-podman stop nls-postgres
-podman rm nls-postgres
-```
-
-### 2) Create a virtualenv and install deps
-```bash
-python -m venv .venv
-source .venv/bin/activate
-pip install -r backend/requirements.txt
+cd backend
+uv sync --group dev
 ```
 
 ### 3) Configure env
@@ -77,20 +47,23 @@ cp backend/.env.example backend/.env
 
 ### 4) Create tables (Alembic migrations)
 ```bash
-PYTHONPATH=backend alembic -c backend/alembic.ini upgrade head
+cd backend
+uv run alembic -c alembic.ini upgrade head
 ```
 
 Recreate the database from scratch:
 ```bash
 dropdb -h localhost -U postgres neighborhood_library
 createdb -h localhost -U postgres neighborhood_library
-PYTHONPATH=backend alembic -c backend/alembic.ini upgrade head
+cd backend
+uv run alembic -c alembic.ini upgrade head
 ```
 
 ### 5) Run the API
 ```bash
 export DATABASE_URL=postgresql+asyncpg://nls_user:<your_local_password>@localhost:5432/neighborhood_library
-PYTHONPATH=backend uvicorn app.main:app --reload
+cd backend
+uv run uvicorn app.main:app --reload
 ```
 
 API docs: `http://localhost:8000/docs`
@@ -112,9 +85,9 @@ API docs: `http://localhost:8000/docs`
 - `POST /imports/loans` (CSV/XLSX upload)
 
 Most endpoints now require a Bearer JWT. Roles:
-- `admin`: full access (users/seed/catalog/loans)
-- `staff`: catalog + loans read/write
-- `member`: limited read/self endpoints
+- `admin`: full access (admin settings, catalog/users management, imports, circulation)
+- `staff`: circulation workflow (borrow/return/fines) + read-only data needed for desk operations
+- `member`: not used in frontend portal (customer self-login intentionally disabled)
 
 Login example:
 ```bash
@@ -210,7 +183,7 @@ E2E_BASE_URL=http://localhost:3000 npm run test:e2e
 ## Tests (80%+ Coverage)
 ```bash
 cd backend
-PYTHONPATH=../backend pytest
+uv run pytest
 ```
 
 Coverage HTML report will be generated in `backend/htmlcov`.
