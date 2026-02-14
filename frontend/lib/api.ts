@@ -1,24 +1,39 @@
 import { clearAuth, getStoredToken } from "./auth";
 
-const API_BASE = process.env.NEXT_PUBLIC_API_BASE || "http://localhost:8000";
-
 type RequestOptions = RequestInit & {
   auth?: boolean;
 };
 
+function getApiBase() {
+  const configured = process.env.NEXT_PUBLIC_API_BASE?.trim();
+  if (configured) return configured.replace(/\/+$/, "");
+  if (typeof window !== "undefined") {
+    return `${window.location.protocol}//${window.location.hostname}:8000`;
+  }
+  return "http://localhost:8000";
+}
+
 async function request<T>(path: string, options: RequestOptions = {}): Promise<T> {
   const auth = options.auth !== false;
   const token = auth ? getStoredToken() : null;
+  const apiBase = getApiBase();
   const headers: Record<string, string> = {
     "Content-Type": "application/json",
     ...(options.headers as Record<string, string> | undefined),
   };
   if (token) headers.Authorization = `Bearer ${token}`;
 
-  const res = await fetch(`${API_BASE}${path}`, {
-    headers,
-    ...options
-  });
+  let res: Response;
+  try {
+    res = await fetch(`${apiBase}${path}`, {
+      headers,
+      ...options
+    });
+  } catch {
+    throw new Error(
+      `Cannot reach API at ${apiBase}. Start backend on port 8000 and allow this frontend origin in CORS.`
+    );
+  }
   if (!res.ok) {
     const body = await res.json().catch(() => ({}));
     if (res.status === 401) {
@@ -27,7 +42,8 @@ async function request<T>(path: string, options: RequestOptions = {}): Promise<T
         window.location.href = "/login";
       }
     }
-    throw new Error(body.detail || "Request failed");
+    const detail = typeof body.detail === "string" ? body.detail : undefined;
+    throw new Error(detail || `Request failed (${res.status}) on ${path}`);
   }
   if (res.status === 204) {
     return undefined as T;

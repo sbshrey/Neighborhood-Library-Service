@@ -61,10 +61,15 @@ export default function LoansPage() {
       const due = new Date(loan.due_at);
       return !Number.isNaN(due.getTime()) && due < new Date();
     });
+    const estimatedFines = active.reduce(
+      (sum, loan) => sum + Number(loan.estimated_fine || 0),
+      0
+    );
     return {
       active: active.length,
       returned: loans.length - active.length,
-      overdue: overdue.length
+      overdue: overdue.length,
+      estimatedFines: estimatedFines.toFixed(2),
     };
   }, [loans]);
 
@@ -78,6 +83,7 @@ export default function LoansPage() {
     return loans.filter((loan) => {
       if (statusFilter === "active" && loan.returned_at) return false;
       if (statusFilter === "returned" && !loan.returned_at) return false;
+      if (statusFilter === "overdue" && !loan.is_overdue) return false;
       if (userFilter !== "all" && String(loan.user_id) !== userFilter) return false;
       return true;
     });
@@ -182,6 +188,10 @@ export default function LoansPage() {
           <div className="stat-label">Returned</div>
           <div className="stat-value">{stats.returned}</div>
         </div>
+        <div className="stat-card">
+          <div className="stat-label">Est. Active Fines</div>
+          <div className="stat-value">${stats.estimatedFines}</div>
+        </div>
       </section>
 
       <section className="page-grid">
@@ -200,6 +210,7 @@ export default function LoansPage() {
               >
                 <option value="all">All</option>
                 <option value="active">Active</option>
+                <option value="overdue">Overdue</option>
                 <option value="returned">Returned</option>
               </select>
             </div>
@@ -243,6 +254,16 @@ export default function LoansPage() {
                   <div className="meta-pair">
                     <div className="meta-label">Due</div>
                     <div className="meta-value">{formatDate(loan.due_at)}</div>
+                  </div>
+                  <div className="meta-pair">
+                    <div className="meta-label">Overdue</div>
+                    <div className="meta-value">
+                      {loan.overdue_days ? `${loan.overdue_days} day(s)` : "No"}
+                    </div>
+                  </div>
+                  <div className="meta-pair">
+                    <div className="meta-label">Est. Fine</div>
+                    <div className="meta-value">${Number(loan.estimated_fine || 0).toFixed(2)}</div>
                   </div>
                   <span className={`status ${loan.returned_at ? "returned" : "active"}`}>
                     {loan.returned_at ? "Returned" : "Active"}
@@ -311,15 +332,17 @@ export default function LoansPage() {
               </select>
             </div>
             <div>
-              <label>Days</label>
+              <label>Days (max 21)</label>
               <input
                 type="number"
                 min={1}
+                max={21}
                 data-testid="borrow-days"
                 value={borrowForm.days}
                 onChange={(e) => setBorrowForm({ ...borrowForm, days: e.target.value })}
               />
             </div>
+            <p className="muted">Policy: max 5 active loans per user, max 21 days per loan.</p>
             <button type="submit" data-testid="borrow-submit">
               Borrow Book
             </button>

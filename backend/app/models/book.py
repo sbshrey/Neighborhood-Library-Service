@@ -12,6 +12,8 @@ class Book(Base):
     id: Mapped[int] = mapped_column(Integer, primary_key=True)
     title: Mapped[str] = mapped_column(String(200), nullable=False)
     author: Mapped[str] = mapped_column(String(200), nullable=False)
+    subject: Mapped[str | None] = mapped_column(String(120))
+    rack_number: Mapped[str | None] = mapped_column(String(64))
     isbn: Mapped[str | None] = mapped_column(String(32), unique=True)
     published_year: Mapped[int | None] = mapped_column(Integer)
     copies_total: Mapped[int] = mapped_column(Integer, nullable=False)

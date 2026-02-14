@@ -1,6 +1,7 @@
 from collections import defaultdict, deque
 from time import monotonic
 import logging
+from urllib.parse import urlparse
 
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
@@ -22,12 +23,42 @@ login_attempts: dict[str, deque[float]] = defaultdict(deque)
 
 
 def _parse_cors(origins: str) -> list[str]:
-    return [origin.strip() for origin in origins.split(",") if origin.strip()]
+    parsed = [origin.strip() for origin in origins.split(",") if origin.strip()]
+    expanded = set(parsed)
+    for origin in parsed:
+        try:
+            parsed_origin = urlparse(origin)
+        except ValueError:
+            continue
+        if parsed_origin.scheme not in {"http", "https"}:
+            continue
+        if parsed_origin.hostname == "localhost":
+            port = f":{parsed_origin.port}" if parsed_origin.port else ""
+            expanded.add(f"{parsed_origin.scheme}://127.0.0.1{port}")
+        elif parsed_origin.hostname == "127.0.0.1":
+            port = f":{parsed_origin.port}" if parsed_origin.port else ""
+            expanded.add(f"{parsed_origin.scheme}://localhost{port}")
+    return sorted(expanded)
+
+
+def _local_cors_regex(origins: str) -> str | None:
+    parsed = [origin.strip() for origin in origins.split(",") if origin.strip()]
+    for origin in parsed:
+        try:
+            parsed_origin = urlparse(origin)
+        except ValueError:
+            continue
+        if parsed_origin.scheme not in {"http", "https"}:
+            continue
+        if parsed_origin.hostname in {"localhost", "127.0.0.1"}:
+            return r"^https?://(localhost|127\.0\.0\.1)(:\d+)?$"
+    return None
 
 
 app.add_middleware(
     CORSMiddleware,
     allow_origins=_parse_cors(settings.cors_origins),
+    allow_origin_regex=_local_cors_regex(settings.cors_origins),
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],

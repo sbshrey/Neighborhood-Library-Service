@@ -55,6 +55,10 @@ export default function DashboardPage() {
       const due = new Date(loan.due_at);
       return !Number.isNaN(due.getTime()) && due < new Date();
     });
+    const estimatedActiveFine = activeLoans.reduce(
+      (sum, loan) => sum + Number(loan.estimated_fine || 0),
+      0
+    );
     const returnedLoans = loans.filter((loan) => loan.returned_at).length;
     const utilization = totalCopies
       ? Math.round(((totalCopies - availableCopies) / totalCopies) * 100)
@@ -66,7 +70,8 @@ export default function DashboardPage() {
       activeLoans: activeLoans.length,
       overdue: overdueLoans.length,
       returnRate: loans.length ? Math.round((returnedLoans / loans.length) * 100) : 0,
-      utilization
+      utilization,
+      estimatedActiveFine: estimatedActiveFine.toFixed(2),
     };
   }, [books, users, loans]);
 
@@ -194,6 +199,10 @@ export default function DashboardPage() {
           <div className="stat-label">Utilization</div>
           <div className="stat-value">{stats.utilization}%</div>
         </div>
+        <div className="stat-card">
+          <div className="stat-label">Est. Active Fines</div>
+          <div className="stat-value">${stats.estimatedActiveFine}</div>
+        </div>
       </section>
 
       <section className="dashboard-grid">
@@ -234,6 +243,9 @@ export default function DashboardPage() {
                     <strong>{book.title}</strong>
                     <div>
                       <span>{book.author}</span>
+                    </div>
+                    <div>
+                      <span>{book.subject || "General"} · Rack {book.rack_number || "-"}</span>
                     </div>
                   </div>
                   <div>
@@ -281,6 +293,10 @@ export default function DashboardPage() {
                     <div className="meta-pair">
                       <div className="meta-label">Due</div>
                       <div className="meta-value">{formatDate(loan.due_at)}</div>
+                    </div>
+                    <div className="meta-pair">
+                      <div className="meta-label">Est. Fine</div>
+                      <div className="meta-value">${Number(loan.estimated_fine || 0).toFixed(2)}</div>
                     </div>
                     <span className={`status ${loan.returned_at ? "returned" : "active"}`}>
                       {loan.returned_at ? "Returned" : "Active"}

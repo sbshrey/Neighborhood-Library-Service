@@ -1,17 +1,35 @@
 from datetime import datetime, timedelta, timezone
 
-from sqlalchemy import update, select
+from sqlalchemy import func, update, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from ..config import settings
 from ..models import Book, Loan, User
 from ..schemas.loans import LoanCreate, LoanUpdate
 
 
 class CRUDLoan:
+    async def _active_loans_count(self, db: AsyncSession, user_id: int) -> int:
+        return await db.scalar(
+            select(func.count(Loan.id)).where(Loan.user_id == user_id, Loan.returned_at.is_(None))
+        )
+
     async def borrow(self, db: AsyncSession, payload: LoanCreate) -> Loan:
+        if payload.days > settings.circulation_max_loan_days:
+            raise ValueError(
+                f"Loan days cannot exceed {settings.circulation_max_loan_days} days"
+            )
+
         user = await db.get(User, payload.user_id)
         if not user:
             raise ValueError("User not found")
+
+        active_loans = await self._active_loans_count(db, payload.user_id)
+        if active_loans >= settings.circulation_max_active_loans_per_user:
+            raise ValueError(
+                "User has reached the maximum active loans limit "
+                f"({settings.circulation_max_active_loans_per_user})"
+            )
 
         now = datetime.now(timezone.utc)
         due_at = now + timedelta(days=payload.days)
@@ -63,7 +81,15 @@ class CRUDLoan:
         await db.refresh(loan)
         return loan
 
-    async def list(self, db: AsyncSession, *, active: bool | None, user_id: int | None, book_id: int | None):
+    async def list(
+        self,
+        db: AsyncSession,
+        *,
+        active: bool | None,
+        user_id: int | None,
+        book_id: int | None,
+        overdue_only: bool,
+    ):
         stmt = select(Loan)
         if active is True:
             stmt = stmt.where(Loan.returned_at.is_(None))
@@ -73,6 +99,11 @@ class CRUDLoan:
             stmt = stmt.where(Loan.user_id == user_id)
         if book_id is not None:
             stmt = stmt.where(Loan.book_id == book_id)
+        if overdue_only:
+            stmt = stmt.where(
+                Loan.returned_at.is_(None),
+                Loan.due_at < datetime.now(timezone.utc),
+            )
         stmt = stmt.order_by(Loan.borrowed_at.desc())
         result = await db.execute(stmt)
         return list(result.scalars().all())
@@ -84,7 +115,15 @@ class CRUDLoan:
         if loan.returned_at is not None:
             raise ValueError("Returned loan cannot be edited")
 
-        loan.due_at = loan.due_at + timedelta(days=payload.extend_days)
+        due_at = loan.due_at + timedelta(days=payload.extend_days)
+        max_due = loan.borrowed_at + timedelta(days=settings.circulation_max_loan_days)
+        if due_at > max_due:
+            raise ValueError(
+                "Loan extension exceeds allowed circulation window "
+                f"({settings.circulation_max_loan_days} days)"
+            )
+
+        loan.due_at = due_at
         await db.flush()
         await db.refresh(loan)
         return loan

@@ -8,6 +8,8 @@ A full‑stack take‑home implementation for managing books, users, and lending
 - `copies_available` is managed by the service and cannot fall below active loans.
 - Books or users with active loans cannot be deleted.
 - Users have a simple `role` field (`member`, `staff`, `admin`) for future access control.
+- Book records can include optional `subject` and `rack_number` metadata for better in-library lookup.
+- Circulation policy is configurable (max active loans per user, max loan days, overdue fine/day).
 
 ## Tech Stack
 - **Backend:** Python, FastAPI, SQLAlchemy, PostgreSQL
@@ -102,6 +104,8 @@ API docs: `http://localhost:8000/docs`
 - `POST /loans/borrow`
 - `POST /loans/{loan_id}/return`
 - `GET /loans`
+- `GET /books?subject=<value>&published_year=<year>`
+- `GET /loans?overdue_only=true`
 
 Most endpoints now require a Bearer JWT. Roles:
 - `admin`: full access (users/seed/catalog/loans)
@@ -175,6 +179,10 @@ E2E_BASE_URL=http://localhost:3000 npm run test:e2e
   - `AUTH_LOGIN_RATE_LIMIT_PER_WINDOW`
   - `AUTH_LOGIN_RATE_LIMIT_WINDOW_SECONDS`
 - Audit logs are emitted for mutating API calls and can be toggled with `AUDIT_LOG_ENABLED`.
+- Circulation policy knobs:
+  - `CIRCULATION_MAX_ACTIVE_LOANS_PER_USER`
+  - `CIRCULATION_MAX_LOAN_DAYS`
+  - `OVERDUE_FINE_PER_DAY`
 
 ## Tests (80%+ Coverage)
 ```bash

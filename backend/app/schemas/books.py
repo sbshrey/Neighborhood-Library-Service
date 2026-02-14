@@ -6,6 +6,8 @@ from pydantic import BaseModel, ConfigDict, Field
 class BookBase(BaseModel):
     title: str = Field(min_length=1, max_length=200)
     author: str = Field(min_length=1, max_length=200)
+    subject: str | None = Field(default=None, max_length=120)
+    rack_number: str | None = Field(default=None, max_length=64)
     isbn: str | None = Field(default=None, max_length=32)
     published_year: int | None = Field(default=None, ge=0, le=2100)
 
@@ -17,6 +19,8 @@ class BookCreate(BookBase):
 class BookUpdate(BaseModel):
     title: str | None = Field(default=None, min_length=1, max_length=200)
     author: str | None = Field(default=None, min_length=1, max_length=200)
+    subject: str | None = Field(default=None, max_length=120)
+    rack_number: str | None = Field(default=None, max_length=64)
     isbn: str | None = Field(default=None, max_length=32)
     published_year: int | None = Field(default=None, ge=0, le=2100)
     copies_total: int | None = Field(default=None, ge=1, le=10000)

@@ -52,12 +52,19 @@ async def return_book(
 @router.get("", response_model=list[LoanOut])
 async def list_loans(
     active: bool | None = Query(default=None),
+    overdue_only: bool = Query(default=False),
     user_id: int | None = Query(default=None),
     book_id: int | None = Query(default=None),
     db: AsyncSession = Depends(get_db),
     _: object = Depends(require_roles("staff", "admin")),
 ):
-    return await crud_loans.list(db, active=active, user_id=user_id, book_id=book_id)
+    return await crud_loans.list(
+        db,
+        active=active,
+        user_id=user_id,
+        book_id=book_id,
+        overdue_only=overdue_only,
+    )
 
 
 @router.patch("/{loan_id}", response_model=LoanOut)

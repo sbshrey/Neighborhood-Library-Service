@@ -15,6 +15,8 @@ router = APIRouter(prefix="/books", tags=["books"])
 @router.get("", response_model=list[BookOut])
 async def list_books(
     q: str | None = Query(default=None, description="Search in title/author/isbn"),
+    subject: str | None = Query(default=None, description="Filter by subject"),
+    published_year: int | None = Query(default=None, ge=0, le=2100),
     available_only: bool = Query(default=False),
     db: AsyncSession = Depends(get_db),
     _: object = Depends(get_current_user),
@@ -22,7 +24,19 @@ async def list_books(
     stmt = select(Book)
     if q:
         like = f"%{q}%"
-        stmt = stmt.where(or_(Book.title.ilike(like), Book.author.ilike(like), Book.isbn.ilike(like)))
+        stmt = stmt.where(
+            or_(
+                Book.title.ilike(like),
+                Book.author.ilike(like),
+                Book.isbn.ilike(like),
+                Book.subject.ilike(like),
+                Book.rack_number.ilike(like),
+            )
+        )
+    if subject:
+        stmt = stmt.where(Book.subject.ilike(f"%{subject}%"))
+    if published_year is not None:
+        stmt = stmt.where(Book.published_year == published_year)
     if available_only:
         stmt = stmt.where(Book.copies_available > 0)
     stmt = stmt.order_by(Book.title.asc())

@@ -110,8 +110,53 @@ async def test_loan_update_delete_and_filters(client, auth_headers):
     assert inactive.status_code == 200
     assert len(inactive.json()) == 1
 
+    overdue = await client.get("/loans?overdue_only=true", headers=auth_headers)
+    assert overdue.status_code == 200
+    assert len(overdue.json()) == 0
+
     delete_returned = await client.delete(f"/loans/{loan_one['id']}", headers=auth_headers)
     assert delete_returned.status_code == 204
 
     missing_delete = await client.delete("/loans/99999", headers=auth_headers)
     assert missing_delete.status_code == 404
+
+
+@pytest.mark.asyncio
+async def test_loan_policy_limits_and_overdue_fields(client, auth_headers):
+    user = await _create_user(client, auth_headers, "Policy User", "policy-user@test.dev")
+
+    book_ids: list[int] = []
+    for index in range(6):
+        book = await _create_book(client, auth_headers, title=f"Policy Book {index + 1}", copies=1)
+        book_ids.append(book["id"])
+
+    for book_id in book_ids[:5]:
+        borrow = await client.post(
+            "/loans/borrow",
+            json={"book_id": book_id, "user_id": user["id"], "days": 7},
+            headers=auth_headers,
+        )
+        assert borrow.status_code == 201
+
+    over_limit = await client.post(
+        "/loans/borrow",
+        json={"book_id": book_ids[5], "user_id": user["id"], "days": 7},
+        headers=auth_headers,
+    )
+    assert over_limit.status_code == 400
+    assert "maximum active loans limit" in over_limit.json()["detail"]
+
+    too_many_days = await client.post(
+        "/loans/borrow",
+        json={"book_id": book_ids[5], "user_id": user["id"], "days": 22},
+        headers=auth_headers,
+    )
+    assert too_many_days.status_code == 400
+    assert too_many_days.json()["detail"] == "Loan days cannot exceed 21 days"
+
+    listed = await client.get("/loans?active=true", headers=auth_headers)
+    assert listed.status_code == 200
+    first = listed.json()[0]
+    assert "estimated_fine" in first
+    assert "overdue_days" in first
+    assert "is_overdue" in first

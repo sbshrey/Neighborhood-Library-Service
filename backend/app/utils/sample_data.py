@@ -19,6 +19,8 @@ SAMPLE_BOOKS = [
     BookCreate(
         title="The Pragmatic Programmer",
         author="Andrew Hunt",
+        subject="Software Engineering",
+        rack_number="SE-A1",
         isbn="9780201616224",
         published_year=1999,
         copies_total=3,
@@ -26,6 +28,8 @@ SAMPLE_BOOKS = [
     BookCreate(
         title="Clean Code",
         author="Robert C. Martin",
+        subject="Software Engineering",
+        rack_number="SE-A2",
         isbn="9780132350884",
         published_year=2008,
         copies_total=2,
@@ -33,6 +37,8 @@ SAMPLE_BOOKS = [
     BookCreate(
         title="Designing Data-Intensive Applications",
         author="Martin Kleppmann",
+        subject="Distributed Systems",
+        rack_number="DS-B1",
         isbn="9781449373320",
         published_year=2017,
         copies_total=2,
@@ -40,6 +46,8 @@ SAMPLE_BOOKS = [
     BookCreate(
         title="Refactoring",
         author="Martin Fowler",
+        subject="Software Engineering",
+        rack_number="SE-A3",
         isbn="9780201485677",
         published_year=1999,
         copies_total=1,
@@ -47,6 +55,8 @@ SAMPLE_BOOKS = [
     BookCreate(
         title="Working Effectively with Legacy Code",
         author="Michael Feathers",
+        subject="Software Engineering",
+        rack_number="SE-A4",
         isbn="9780131177055",
         published_year=2004,
         copies_total=1,

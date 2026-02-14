@@ -240,3 +240,18 @@ async def test_startup_respects_auto_create_schema(monkeypatch):
     await main_module.startup()
     assert fake_conn.ran_sync is True
 
+
+def test_parse_cors_expands_localhost_and_loopback():
+    expanded = main_module._parse_cors("http://localhost:3000,https://127.0.0.1:3443")
+    assert "http://localhost:3000" in expanded
+    assert "http://127.0.0.1:3000" in expanded
+    assert "https://127.0.0.1:3443" in expanded
+    assert "https://localhost:3443" in expanded
+
+
+def test_local_cors_regex_enables_loopback_ports():
+    assert (
+        main_module._local_cors_regex("https://example.com,http://localhost:3000")
+        == r"^https?://(localhost|127\.0\.0\.1)(:\d+)?$"
+    )
+    assert main_module._local_cors_regex("https://example.com") is None

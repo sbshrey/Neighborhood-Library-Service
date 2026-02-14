@@ -8,10 +8,13 @@ export default function CatalogPage() {
   const { showToast } = useToast();
   const [books, setBooks] = useState<any[]>([]);
   const [authorFilter, setAuthorFilter] = useState("all");
+  const [subjectFilter, setSubjectFilter] = useState("all");
   const [availabilityFilter, setAvailabilityFilter] = useState("all");
   const [bookForm, setBookForm] = useState({
     title: "",
     author: "",
+    subject: "",
+    rack_number: "",
     isbn: "",
     published_year: "",
     copies_total: "1"
@@ -51,26 +54,44 @@ export default function CatalogPage() {
     return values.sort((a, b) => a.localeCompare(b));
   }, [books]);
 
+  const subjectOptions = useMemo(() => {
+    const values = Array.from(
+      new Set(books.map((book) => (book.subject || "").trim()).filter(Boolean))
+    );
+    return values.sort((a, b) => a.localeCompare(b));
+  }, [books]);
+
   const visibleBooks = useMemo(() => {
     return books.filter((book) => {
       if (authorFilter !== "all" && book.author !== authorFilter) return false;
+      if (subjectFilter !== "all" && book.subject !== subjectFilter) return false;
       if (availabilityFilter === "available" && book.copies_available <= 0) return false;
       if (availabilityFilter === "unavailable" && book.copies_available > 0) return false;
       return true;
     });
-  }, [books, authorFilter, availabilityFilter]);
+  }, [books, authorFilter, subjectFilter, availabilityFilter]);
 
   const handleCreateBook = async (e: React.FormEvent) => {
     e.preventDefault();
     try {
       await createBook({
         ...bookForm,
+        subject: bookForm.subject.trim() || undefined,
+        rack_number: bookForm.rack_number.trim() || undefined,
         published_year: bookForm.published_year
           ? Number(bookForm.published_year)
           : undefined,
         copies_total: Number(bookForm.copies_total)
       });
-      setBookForm({ title: "", author: "", isbn: "", published_year: "", copies_total: "1" });
+      setBookForm({
+        title: "",
+        author: "",
+        subject: "",
+        rack_number: "",
+        isbn: "",
+        published_year: "",
+        copies_total: "1",
+      });
       showToast({ type: "success", title: "Book created successfully" });
       refresh();
     } catch (err: any) {
@@ -87,6 +108,10 @@ export default function CatalogPage() {
     if (title === null) return;
     const author = window.prompt("Edit author", book.author);
     if (author === null) return;
+    const subject = window.prompt("Edit subject (optional)", book.subject || "");
+    if (subject === null) return;
+    const rackNumber = window.prompt("Edit rack number (optional)", book.rack_number || "");
+    if (rackNumber === null) return;
     const isbn = window.prompt("Edit ISBN (optional)", book.isbn || "");
     if (isbn === null) return;
     const publishedYear = window.prompt(
@@ -107,6 +132,8 @@ export default function CatalogPage() {
       await updateBook(book.id, {
         title: title.trim(),
         author: author.trim(),
+        subject: subject.trim() || null,
+        rack_number: rackNumber.trim() || null,
         isbn: isbn.trim() || null,
         published_year: publishedYear.trim() ? Number(publishedYear) : null,
         copies_total: parsedCopies,
@@ -204,6 +231,21 @@ export default function CatalogPage() {
                 <option value="unavailable">Unavailable</option>
               </select>
             </div>
+            <div className="filter-field">
+              <label>Subject</label>
+              <select
+                value={subjectFilter}
+                onChange={(e) => setSubjectFilter(e.target.value)}
+                data-testid="catalog-subject-filter"
+              >
+                <option value="all">All subjects</option>
+                {subjectOptions.map((subject) => (
+                  <option key={subject} value={subject}>
+                    {subject}
+                  </option>
+                ))}
+              </select>
+            </div>
           </div>
           <div className="table">
             {visibleBooks.map((book) => (
@@ -217,6 +259,9 @@ export default function CatalogPage() {
                   <strong>{book.title}</strong>
                   <div>
                     <span>{book.author}</span>
+                  </div>
+                  <div>
+                    <span>{book.subject || "General"} · Rack {book.rack_number || "-"}</span>
                   </div>
                 </div>
                 <div>
@@ -233,6 +278,10 @@ export default function CatalogPage() {
                   <div className="meta-pair">
                     <div className="meta-label">ISBN</div>
                     <div className="meta-value">{book.isbn || "-"}</div>
+                  </div>
+                  <div className="meta-pair">
+                    <div className="meta-label">Published</div>
+                    <div className="meta-value">{book.published_year || "-"}</div>
                   </div>
                   <div className="row-actions">
                     <button className="ghost small" type="button" onClick={() => handleEditBook(book)}>
@@ -284,6 +333,22 @@ export default function CatalogPage() {
                 data-testid="book-isbn"
                 value={bookForm.isbn}
                 onChange={(e) => setBookForm({ ...bookForm, isbn: e.target.value })}
+              />
+            </div>
+            <div>
+              <label>Subject</label>
+              <input
+                data-testid="book-subject"
+                value={bookForm.subject}
+                onChange={(e) => setBookForm({ ...bookForm, subject: e.target.value })}
+              />
+            </div>
+            <div>
+              <label>Rack Number</label>
+              <input
+                data-testid="book-rack-number"
+                value={bookForm.rack_number}
+                onChange={(e) => setBookForm({ ...bookForm, rack_number: e.target.value })}
               />
             </div>
             <div>

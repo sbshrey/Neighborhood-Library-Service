@@ -14,7 +14,7 @@ class Settings(BaseSettings):
         "postgresql+asyncpg://nls_user:set_local_password@localhost:5432/"
         "neighborhood_library"
     )
-    cors_origins: str = "http://localhost:3000"
+    cors_origins: str = "http://localhost:3000,http://127.0.0.1:3000"
     sql_echo: bool = False
     db_pool_size: int = 10
     db_max_overflow: int = 20
@@ -30,6 +30,9 @@ class Settings(BaseSettings):
     auth_login_rate_limit_per_window: int = 20
     auth_login_rate_limit_window_seconds: int = 60
     audit_log_enabled: bool = True
+    circulation_max_active_loans_per_user: int = 5
+    circulation_max_loan_days: int = 21
+    overdue_fine_per_day: float = 2.0
 
 
 def _ensure_async_driver(url: str) -> str:
