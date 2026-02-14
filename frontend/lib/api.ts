@@ -51,6 +51,34 @@ async function request<T>(path: string, options: RequestOptions = {}): Promise<T
   return res.json();
 }
 
+async function upload<T>(path: string, file: File): Promise<T> {
+  const token = getStoredToken();
+  const apiBase = getApiBase();
+  const headers: Record<string, string> = {};
+  if (token) headers.Authorization = `Bearer ${token}`;
+  const form = new FormData();
+  form.append("file", file);
+
+  let res: Response;
+  try {
+    res = await fetch(`${apiBase}${path}`, {
+      method: "POST",
+      headers,
+      body: form,
+    });
+  } catch {
+    throw new Error(
+      `Cannot reach API at ${apiBase}. Start backend on port 8000 and allow this frontend origin in CORS.`
+    );
+  }
+  if (!res.ok) {
+    const body = await res.json().catch(() => ({}));
+    const detail = typeof body.detail === "string" ? body.detail : undefined;
+    throw new Error(detail || `Upload failed (${res.status}) on ${path}`);
+  }
+  return res.json();
+}
+
 export async function getBooks() {
   return request<any[]>("/books");
 }
@@ -131,6 +159,27 @@ export async function seedData() {
   return request<{ status: string; message?: string; counts?: Record<string, number> }>("/seed", {
     method: "POST"
   });
+}
+
+export async function importBooksFile(file: File) {
+  return upload<{ entity: string; imported: number; skipped: number; errors: Array<any> }>(
+    "/imports/books",
+    file
+  );
+}
+
+export async function importUsersFile(file: File) {
+  return upload<{ entity: string; imported: number; skipped: number; errors: Array<any> }>(
+    "/imports/users",
+    file
+  );
+}
+
+export async function importLoansFile(file: File) {
+  return upload<{ entity: string; imported: number; skipped: number; errors: Array<any> }>(
+    "/imports/loans",
+    file
+  );
 }
 
 export async function login(payload: { email: string; password: string }) {

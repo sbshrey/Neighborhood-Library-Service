@@ -1,0 +1,11 @@
+name,email,phone,role,password
+Nisha Iyer,nisha.iyer@library.dev,+91-98100-11111,admin,Admin@12345
+Arjun Mehta,arjun.mehta@library.dev,+91-98100-11112,staff,Staff@12345
+Priya Nair,priya.nair@library.dev,+91-98100-11113,staff,Staff@12345
+Rohan Verma,rohan.verma@library.dev,+91-98100-11114,member,Member@12345
+Ananya Sen,ananya.sen@library.dev,+91-98100-11115,member,Member@12345
+Kabir Khan,kabir.khan@library.dev,+91-98100-11116,member,Member@12345
+Meera Joshi,meera.joshi@library.dev,+91-98100-11117,member,Member@12345
+Aditya Rao,aditya.rao@library.dev,+91-98100-11118,member,Member@12345
+Ishita Kapoor,ishita.kapoor@library.dev,+91-98100-11119,member,Member@12345
+Vikram Desai,vikram.desai@library.dev,+91-98100-11120,member,Member@12345

@@ -12,6 +12,7 @@ from .config import settings
 from .db import Base, engine
 from .routers import auth as auth_router
 from .routers import books as books_router
+from .routers import imports as imports_router
 from .routers import loans as loans_router
 from .routers import seed as seed_router
 from .routers import users as users_router
@@ -131,3 +132,4 @@ app.include_router(users_router.router)
 app.include_router(loans_router.router)
 app.include_router(seed_router.router)
 app.include_router(auth_router.router)
+app.include_router(imports_router.router)

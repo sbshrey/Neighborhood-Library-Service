@@ -10,6 +10,7 @@ A full‑stack take‑home implementation for managing books, users, and lending
 - Users have a simple `role` field (`member`, `staff`, `admin`) for future access control.
 - Book records can include optional `subject` and `rack_number` metadata for better in-library lookup.
 - Circulation policy is configurable (max active loans per user, max loan days, overdue fine/day).
+- Onboarding supports bulk import via CSV/XLSX for books, users, and loans.
 
 ## Tech Stack
 - **Backend:** Python, FastAPI, SQLAlchemy, PostgreSQL
@@ -106,6 +107,9 @@ API docs: `http://localhost:8000/docs`
 - `GET /loans`
 - `GET /books?subject=<value>&published_year=<year>`
 - `GET /loans?overdue_only=true`
+- `POST /imports/books` (CSV/XLSX upload)
+- `POST /imports/users` (CSV/XLSX upload)
+- `POST /imports/loans` (CSV/XLSX upload)
 
 Most endpoints now require a Bearer JWT. Roles:
 - `admin`: full access (users/seed/catalog/loans)
@@ -128,6 +132,22 @@ curl -X POST http://localhost:8000/loans/borrow \
   -H "Authorization: Bearer $TOKEN" \
   -H "Content-Type: application/json" \
   -d '{"book_id":1,"user_id":1,"days":14}'
+```
+
+Bulk import examples:
+```bash
+TOKEN="<admin_token>"
+curl -X POST http://localhost:8000/imports/books \
+  -H "Authorization: Bearer $TOKEN" \
+  -F "file=@backend/data/seed_india/books.csv"
+
+curl -X POST http://localhost:8000/imports/users \
+  -H "Authorization: Bearer $TOKEN" \
+  -F "file=@backend/data/seed_india/users.csv"
+
+curl -X POST http://localhost:8000/imports/loans \
+  -H "Authorization: Bearer $TOKEN" \
+  -F "file=@backend/data/seed_india/loans.csv"
 ```
 
 ---
@@ -183,6 +203,7 @@ E2E_BASE_URL=http://localhost:3000 npm run test:e2e
   - `CIRCULATION_MAX_ACTIVE_LOANS_PER_USER`
   - `CIRCULATION_MAX_LOAN_DAYS`
   - `OVERDUE_FINE_PER_DAY`
+- Curated onboarding CSV files are included in `backend/data/seed_india/` with Indian books/users and historical loan transactions.
 
 ## Tests (80%+ Coverage)
 ```bash
