@@ -1,8 +1,9 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
+
 import { useToast } from "../components/ToastProvider";
-import { getBooks, getLoans, getUsers, seedData } from "../lib/api";
+import { borrowBook, getBooks, getLoans, getUsers, returnBook } from "../lib/api";
 
 function formatDate(value?: string | null) {
   if (!value) return "-";
@@ -11,33 +12,32 @@ function formatDate(value?: string | null) {
   return date.toLocaleDateString();
 }
 
-function formatTimestamp(value?: string | null) {
-  if (!value) return "-";
-  const date = new Date(value);
-  if (Number.isNaN(date.getTime())) return "-";
-  return date.toLocaleString(undefined, { month: "short", day: "numeric", hour: "numeric" });
-}
-
-export default function DashboardPage() {
+export default function BorrowingsPage() {
   const { showToast } = useToast();
   const [books, setBooks] = useState<any[]>([]);
   const [users, setUsers] = useState<any[]>([]);
   const [loans, setLoans] = useState<any[]>([]);
-  const [seeding, setSeeding] = useState(false);
+  const [statusFilter, setStatusFilter] = useState("active");
+  const [borrowForm, setBorrowForm] = useState({ book_id: "", user_id: "", days: "14" });
+  const [returnForm, setReturnForm] = useState({ loan_id: "" });
 
   const refresh = async (showSuccess = false) => {
     try {
-      const [b, u, l] = await Promise.all([getBooks(), getUsers(), getLoans()]);
-      setBooks(b);
-      setUsers(u);
-      setLoans(l);
+      const [booksData, usersData, loansData] = await Promise.all([
+        getBooks(),
+        getUsers(),
+        getLoans(),
+      ]);
+      setBooks(booksData);
+      setUsers(usersData);
+      setLoans(loansData);
       if (showSuccess) {
-        showToast({ type: "success", title: "Dashboard refreshed" });
+        showToast({ type: "success", title: "Borrowings refreshed" });
       }
     } catch (err: any) {
       showToast({
         type: "error",
-        title: "Unable to load dashboard",
+        title: "Unable to load borrowings",
         description: err.message || "Request failed",
       });
     }
@@ -48,318 +48,236 @@ export default function DashboardPage() {
   }, []);
 
   const stats = useMemo(() => {
-    const totalCopies = books.reduce((sum, book) => sum + book.copies_total, 0);
-    const availableCopies = books.reduce((sum, book) => sum + book.copies_available, 0);
-    const activeLoans = loans.filter((loan) => !loan.returned_at);
-    const overdueLoans = activeLoans.filter((loan) => {
-      const due = new Date(loan.due_at);
-      return !Number.isNaN(due.getTime()) && due < new Date();
-    });
-    const estimatedActiveFine = activeLoans.reduce(
-      (sum, loan) => sum + Number(loan.estimated_fine || 0),
-      0
-    );
-    const returnedLoans = loans.filter((loan) => loan.returned_at).length;
-    const utilization = totalCopies
-      ? Math.round(((totalCopies - availableCopies) / totalCopies) * 100)
-      : 0;
+    const active = loans.filter((loan) => !loan.returned_at);
+    const overdue = active.filter((loan) => loan.is_overdue);
+    const estimatedFines = active.reduce((sum, loan) => sum + Number(loan.estimated_fine || 0), 0);
+    const today = new Date().toISOString().slice(0, 10);
+    const returnedToday = loans.filter(
+      (loan) => loan.returned_at && String(loan.returned_at).slice(0, 10) === today
+    ).length;
     return {
-      totalCopies,
-      availableCopies,
-      users: users.length,
-      activeLoans: activeLoans.length,
-      overdue: overdueLoans.length,
-      returnRate: loans.length ? Math.round((returnedLoans / loans.length) * 100) : 0,
-      utilization,
-      estimatedActiveFine: estimatedActiveFine.toFixed(2),
+      active: active.length,
+      overdue: overdue.length,
+      estimatedFines: estimatedFines.toFixed(2),
+      returnedToday,
     };
-  }, [books, users, loans]);
+  }, [loans]);
 
-  const recentLoans = useMemo(() => loans.slice(0, 6), [loans]);
+  const bookLookup = useMemo(() => new Map(books.map((book) => [book.id, book])), [books]);
+  const userLookup = useMemo(() => new Map(users.map((user) => [user.id, user])), [users]);
+  const activeLoans = useMemo(() => loans.filter((loan) => !loan.returned_at), [loans]);
 
-  const circulationTrend = useMemo(() => {
-    const today = new Date();
-    const days = Array.from({ length: 7 }, (_, index) => {
-      const date = new Date(today);
-      date.setDate(today.getDate() - (6 - index));
-      const key = date.toISOString().slice(0, 10);
-      return {
-        key,
-        label: date.toLocaleDateString(undefined, { weekday: "short" })
-      };
+  const visibleLoans = useMemo(() => {
+    return loans.filter((loan) => {
+      if (statusFilter === "active" && loan.returned_at) return false;
+      if (statusFilter === "returned" && !loan.returned_at) return false;
+      if (statusFilter === "overdue" && !loan.is_overdue) return false;
+      return true;
     });
-    const counts = loans.reduce<Record<string, number>>((acc, loan) => {
-      const timestamp = new Date(loan.borrowed_at);
-      if (Number.isNaN(timestamp.getTime())) return acc;
-      const key = timestamp.toISOString().slice(0, 10);
-      acc[key] = (acc[key] || 0) + 1;
-      return acc;
-    }, {});
-    const series = days.map((day) => ({
-      ...day,
-      value: counts[day.key] || 0
-    }));
-    const max = Math.max(1, ...series.map((item) => item.value));
-    return { series, max };
-  }, [loans]);
+  }, [loans, statusFilter]);
 
-  const activityFeed = useMemo(() => {
-    const items = loans
-      .map((loan) => {
-        const returned = Boolean(loan.returned_at);
-        const timestamp = returned ? loan.returned_at : loan.borrowed_at;
-        return {
-          title: returned ? "Return processed" : "Loan issued",
-          detail: `Book ${loan.book_id} • User ${loan.user_id}`,
-          time: formatTimestamp(timestamp),
-          sortKey: timestamp ? new Date(timestamp).getTime() : 0
-        };
-      })
-      .sort((a, b) => b.sortKey - a.sortKey)
-      .slice(0, 6);
-    return items;
-  }, [loans]);
-
-  const inventoryAlerts = useMemo(() => {
-    return books
-      .filter((book) => book.copies_available <= 1)
-      .slice(0, 4)
-      .map((book) => ({
-        title: book.title,
-        detail: `${book.copies_available}/${book.copies_total} available`,
-        isbn: book.isbn || "-"
-      }));
-  }, [books]);
-
-  const handleSeed = async () => {
-    setSeeding(true);
+  const handleBorrow = async (event: React.FormEvent) => {
+    event.preventDefault();
     try {
-      const result = await seedData();
-      const message = result.status === "created" ? "Sample data loaded." : result.message;
-      showToast({
-        type: "success",
-        title: "Seed completed",
-        description: message || "Sample data request complete.",
+      await borrowBook({
+        book_id: Number(borrowForm.book_id),
+        user_id: Number(borrowForm.user_id),
+        days: Number(borrowForm.days),
       });
+      setBorrowForm({ book_id: "", user_id: "", days: "14" });
+      showToast({ type: "success", title: "Borrowing recorded" });
       refresh();
     } catch (err: any) {
       showToast({
         type: "error",
-        title: "Unable to seed sample data",
+        title: "Borrowing failed",
         description: err.message || "Request failed",
       });
-    } finally {
-      setSeeding(false);
+    }
+  };
+
+  const handleReturn = async (event: React.FormEvent) => {
+    event.preventDefault();
+    try {
+      await returnBook(Number(returnForm.loan_id));
+      setReturnForm({ loan_id: "" });
+      showToast({ type: "success", title: "Return recorded" });
+      refresh();
+    } catch (err: any) {
+      showToast({
+        type: "error",
+        title: "Return failed",
+        description: err.message || "Request failed",
+      });
     }
   };
 
   return (
-    <div className="dashboard">
+    <div className="page-layout">
       <header className="page-header">
         <div>
-          <div className="badge">Operational Console</div>
-          <h1>Library Overview</h1>
-          <p className="lede">
-            Track circulation, monitor availability, and keep the catalog healthy. Launch with
-            production-ready sample data or operate live.
-          </p>
+          <div className="badge">Circulation Desk</div>
+          <h1>Borrowings, Returns, Fines</h1>
+          <p className="lede">Staff workflow for issuing books, accepting returns, and monitoring overdue fines.</p>
         </div>
-        <div className="page-actions">
-          <button className="ghost" onClick={handleSeed} disabled={seeding} data-testid="seed-data">
-            {seeding ? "Seeding..." : "Load Sample Data"}
-          </button>
-          <button className="secondary" onClick={() => refresh(true)}>
-            Refresh Data
-          </button>
-        </div>
+        <button className="secondary" onClick={() => refresh(true)}>
+          Refresh
+        </button>
       </header>
 
       <section className="stat-grid">
         <div className="stat-card">
-          <div className="stat-label">Total Copies</div>
-          <div className="stat-value">{stats.totalCopies}</div>
-        </div>
-        <div className="stat-card">
-          <div className="stat-label">Available Now</div>
-          <div className="stat-value">{stats.availableCopies}</div>
-        </div>
-        <div className="stat-card">
-          <div className="stat-label">Active Loans</div>
-          <div className="stat-value">{stats.activeLoans}</div>
+          <div className="stat-label">Active Borrowings</div>
+          <div className="stat-value">{stats.active}</div>
         </div>
         <div className="stat-card">
           <div className="stat-label">Overdue</div>
           <div className="stat-value">{stats.overdue}</div>
         </div>
         <div className="stat-card">
-          <div className="stat-label">Return Rate</div>
-          <div className="stat-value">{stats.returnRate}%</div>
+          <div className="stat-label">Outstanding Fines</div>
+          <div className="stat-value">${stats.estimatedFines}</div>
         </div>
         <div className="stat-card">
-          <div className="stat-label">Utilization</div>
-          <div className="stat-value">{stats.utilization}%</div>
-        </div>
-        <div className="stat-card">
-          <div className="stat-label">Est. Active Fines</div>
-          <div className="stat-value">${stats.estimatedActiveFine}</div>
+          <div className="stat-label">Returned Today</div>
+          <div className="stat-value">{stats.returnedToday}</div>
         </div>
       </section>
 
-      <section className="dashboard-grid">
-        <div className="panel-stack">
-          <div className="panel-card">
-            <div className="card-header">
-              <h2>Circulation Trend</h2>
-              <span className="pill">Last 7 days</span>
-            </div>
-            <div className="chart">
-              <div className="chart-bars">
-                {circulationTrend.series.map((item) => (
-                  <div key={item.key} className="chart-bar">
-                    <div
-                      className="chart-bar-fill"
-                      style={{ height: `${Math.round((item.value / circulationTrend.max) * 100)}%` }}
-                    />
-                  </div>
-                ))}
-              </div>
-              <div className="chart-labels">
-                {circulationTrend.series.map((item) => (
-                  <span key={item.key}>{item.label}</span>
-                ))}
-              </div>
+      <section className="page-grid">
+        <div className="table-card">
+          <div className="card-header">
+            <h2>Borrowing Register</h2>
+            <div className="filter-field">
+              <label>Status</label>
+              <select value={statusFilter} onChange={(event) => setStatusFilter(event.target.value)}>
+                <option value="active">Active</option>
+                <option value="overdue">Overdue</option>
+                <option value="returned">Returned</option>
+                <option value="all">All</option>
+              </select>
             </div>
           </div>
-
-          <div className="table-card">
-            <div className="card-header">
-              <h2>Catalog Pulse</h2>
-              <span className="pill">Live inventory</span>
-            </div>
-            <div className="table">
-              {books.map((book) => (
-                <div key={book.id} className="row">
-                  <div>
-                    <strong>{book.title}</strong>
-                    <div>
-                      <span>{book.author}</span>
-                    </div>
-                    <div>
-                      <span>{book.subject || "General"} · Rack {book.rack_number || "-"}</span>
-                    </div>
-                  </div>
-                  <div>
-                    <div className="meta-label">Available</div>
-                    <div className="meta-value">
-                      {book.copies_available}/{book.copies_total}
-                    </div>
-                  </div>
-                  <div className="row-meta">
-                    <div className="meta-pair">
-                      <div className="meta-label">Book ID</div>
-                      <div className="meta-value">{book.id}</div>
-                    </div>
-                    <div className="meta-pair">
-                      <div className="meta-label">ISBN</div>
-                      <div className="meta-value">{book.isbn || "-"}</div>
-                    </div>
-                  </div>
-                </div>
-              ))}
-            </div>
-          </div>
-
-          <div className="table-card">
-            <div className="card-header">
-              <h2>Recent Loans</h2>
-              <span className="pill">Last updated</span>
-            </div>
-            <div className="table">
-              {recentLoans.map((loan) => (
+          <div className="table">
+            {visibleLoans.map((loan) => {
+              const book = bookLookup.get(loan.book_id);
+              const user = userLookup.get(loan.user_id);
+              return (
                 <div key={loan.id} className="row">
                   <div>
-                    <strong>Loan #{loan.id}</strong>
+                    <strong>{book?.title || `Book #${loan.book_id}`}</strong>
                     <div>
-                      <span>Borrowed {formatDate(loan.borrowed_at)}</span>
+                      <span>{user?.name || `User #${loan.user_id}`}</span>
                     </div>
                   </div>
                   <div>
-                    <div className="meta-label">Book ID</div>
-                    <div className="meta-value">{loan.book_id}</div>
-                    <div className="meta-label">User ID</div>
-                    <div className="meta-value">{loan.user_id}</div>
+                    <div className="meta-label">Due Date</div>
+                    <div className="meta-value">{formatDate(loan.due_at)}</div>
+                    <div className="meta-label">Status</div>
+                    <div className="meta-value">{loan.returned_at ? "Returned" : loan.is_overdue ? "Overdue" : "Active"}</div>
                   </div>
                   <div className="row-meta">
                     <div className="meta-pair">
-                      <div className="meta-label">Due</div>
-                      <div className="meta-value">{formatDate(loan.due_at)}</div>
+                      <div className="meta-label">Overdue Days</div>
+                      <div className="meta-value">{loan.overdue_days || 0}</div>
                     </div>
                     <div className="meta-pair">
-                      <div className="meta-label">Est. Fine</div>
+                      <div className="meta-label">Estimated Fine</div>
                       <div className="meta-value">${Number(loan.estimated_fine || 0).toFixed(2)}</div>
                     </div>
-                    <span className={`status ${loan.returned_at ? "returned" : "active"}`}>
-                      {loan.returned_at ? "Returned" : "Active"}
+                    <span className={`status ${loan.returned_at ? "returned" : loan.is_overdue ? "flag" : "active"}`}>
+                      {loan.returned_at ? "Returned" : loan.is_overdue ? "Overdue" : "Active"}
                     </span>
                   </div>
                 </div>
-              ))}
-            </div>
+              );
+            })}
+            {visibleLoans.length === 0 && (
+              <div className="row">
+                <div>
+                  <strong>No borrowing records for this filter.</strong>
+                </div>
+                <div />
+                <div />
+              </div>
+            )}
           </div>
         </div>
 
         <aside className="panel-stack">
           <div className="panel-card">
-            <div className="card-header">
-              <h2>Activity Feed</h2>
-              <span className="pill">Circulation</span>
-            </div>
-            <div className="activity">
-              {activityFeed.map((event) => (
-                <div key={`${event.title}-${event.detail}`} className="activity-item">
-                  <div>
-                    <strong>{event.title}</strong>
-                    <div>
-                      <span>{event.detail}</span>
-                    </div>
-                  </div>
-                  <span className="activity-time">{event.time}</span>
-                </div>
-              ))}
-            </div>
+            <h2>Issue Book</h2>
+            <form onSubmit={handleBorrow}>
+              <div>
+                <label>Book</label>
+                <select
+                  value={borrowForm.book_id}
+                  onChange={(event) => setBorrowForm({ ...borrowForm, book_id: event.target.value })}
+                  required
+                >
+                  <option value="">Select a book</option>
+                  {books.map((book) => (
+                    <option key={book.id} value={String(book.id)}>
+                      {book.title} ({book.copies_available}/{book.copies_total} available)
+                    </option>
+                  ))}
+                </select>
+              </div>
+              <div>
+                <label>Member</label>
+                <select
+                  value={borrowForm.user_id}
+                  onChange={(event) => setBorrowForm({ ...borrowForm, user_id: event.target.value })}
+                  required
+                >
+                  <option value="">Select a member</option>
+                  {users.map((user) => (
+                    <option key={user.id} value={String(user.id)}>
+                      {user.name}
+                    </option>
+                  ))}
+                </select>
+              </div>
+              <div>
+                <label>Days (max 21)</label>
+                <input
+                  type="number"
+                  min={1}
+                  max={21}
+                  value={borrowForm.days}
+                  onChange={(event) => setBorrowForm({ ...borrowForm, days: event.target.value })}
+                />
+              </div>
+              <button type="submit">Record Borrowing</button>
+            </form>
           </div>
 
           <div className="panel-card">
-            <div className="card-header">
-              <h2>Inventory Alerts</h2>
-              <span className="pill">Low stock</span>
-            </div>
-            <div className="activity">
-              {inventoryAlerts.length === 0 ? (
-                <div className="activity-item">
-                  <div>
-                    <strong>All shelves healthy</strong>
-                    <div>
-                      <span>No low-stock titles detected.</span>
-                    </div>
-                  </div>
-                  <span className="status active">Stable</span>
-                </div>
-              ) : (
-                inventoryAlerts.map((alert) => (
-                  <div key={alert.title} className="activity-item">
-                    <div>
-                      <strong>{alert.title}</strong>
-                      <div>
-                        <span>{alert.detail}</span>
-                      </div>
-                      <div className="meta-label">ISBN {alert.isbn}</div>
-                    </div>
-                    <span className="status flag">Watch</span>
-                  </div>
-                ))
-              )}
-            </div>
+            <h2>Accept Return</h2>
+            <form onSubmit={handleReturn}>
+              <div>
+                <label>Active Loan</label>
+                <select
+                  value={returnForm.loan_id}
+                  onChange={(event) => setReturnForm({ loan_id: event.target.value })}
+                  required
+                >
+                  <option value="">Select loan</option>
+                  {activeLoans.map((loan) => {
+                    const book = bookLookup.get(loan.book_id);
+                    const user = userLookup.get(loan.user_id);
+                    return (
+                      <option key={loan.id} value={String(loan.id)}>
+                        {book?.title || `Book #${loan.book_id}`} - {user?.name || `User #${loan.user_id}`}
+                      </option>
+                    );
+                  })}
+                </select>
+              </div>
+              <button type="submit" className="secondary">
+                Record Return
+              </button>
+            </form>
           </div>
         </aside>
       </section>

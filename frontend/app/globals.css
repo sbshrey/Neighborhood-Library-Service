@@ -545,6 +545,18 @@ button.ghost {
   color: var(--muted);
 }
 
+.ghost-link {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding: 10px 16px;
+  border-radius: 12px;
+  border: 1px solid var(--border);
+  background: transparent;
+  color: var(--muted);
+  font-weight: 600;
+}
+
 button.small {
   padding: 6px 10px;
   border-radius: 10px;

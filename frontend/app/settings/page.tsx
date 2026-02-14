@@ -1,5 +1,6 @@
 "use client";
 
+import Link from "next/link";
 import { useState } from "react";
 
 import { useToast } from "../../components/ToastProvider";
@@ -66,8 +67,8 @@ export default function SettingsPage() {
       <header className="page-header">
         <div>
           <div className="badge">Settings</div>
-          <h1>Library Configuration</h1>
-          <p className="lede">Configure policies and import onboarding data in bulk.</p>
+          <h1>Admin Control Center</h1>
+          <p className="lede">Admin-only tools for catalog management, user administration, audit, and bulk onboarding.</p>
         </div>
       </header>
 
@@ -167,6 +168,51 @@ export default function SettingsPage() {
             </div>
           </div>
         </aside>
+      </section>
+
+      <section className="table-card">
+        <div className="card-header">
+          <h2>Admin Modules</h2>
+          <span className="pill">Restricted</span>
+        </div>
+        <div className="settings-grid">
+          <div className="settings-item">
+            <div>
+              <strong>Catalog Management</strong>
+              <p>Add/edit books, ISBN, rack, and inventory metadata.</p>
+            </div>
+            <Link className="ghost-link" href="/catalog">
+              Open Catalog
+            </Link>
+          </div>
+          <div className="settings-item">
+            <div>
+              <strong>User Administration</strong>
+              <p>Create staff/admin accounts and manage member records.</p>
+            </div>
+            <Link className="ghost-link" href="/users">
+              Open Users
+            </Link>
+          </div>
+          <div className="settings-item">
+            <div>
+              <strong>Roles & Permissions</strong>
+              <p>Review access model for admins and staff.</p>
+            </div>
+            <Link className="ghost-link" href="/roles">
+              Open Roles
+            </Link>
+          </div>
+          <div className="settings-item">
+            <div>
+              <strong>Audit Trail</strong>
+              <p>Review action history and policy-sensitive operations.</p>
+            </div>
+            <Link className="ghost-link" href="/audit">
+              Open Audit
+            </Link>
+          </div>
+        </div>
       </section>
     </div>
   );

@@ -175,6 +175,8 @@ npm run dev
 - Open `http://localhost:3000/login`
 - On a fresh DB with zero users, enter Name/Email/Password and click **Bootstrap Admin (First Run)**.
 - After bootstrap, use the same credentials to sign in.
+- UI is staff/admin-only (customer/member self-login is intentionally not supported in this portal).
+- Staff sees circulation workflow only (borrow/return/fines). Admin additionally sees **Admin Settings**.
 
 ### Playwright E2E Tests
 Ensure the backend API is running and the frontend dev server is up.

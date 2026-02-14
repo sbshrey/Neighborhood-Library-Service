@@ -72,7 +72,7 @@ async def update_loan(
     loan_id: int,
     payload: LoanUpdate,
     db: AsyncSession = Depends(get_db),
-    _: object = Depends(require_roles("staff", "admin")),
+    _: object = Depends(require_roles("admin")),
 ):
     try:
         return await crud_loans.update(db, loan_id, payload)
@@ -90,7 +90,7 @@ async def update_loan(
 async def delete_loan(
     loan_id: int,
     db: AsyncSession = Depends(get_db),
-    _: object = Depends(require_roles("staff", "admin")),
+    _: object = Depends(require_roles("admin")),
 ):
     try:
         await crud_loans.remove(db, loan_id)

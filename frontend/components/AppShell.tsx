@@ -8,6 +8,8 @@ import { AuthUser, clearAuth, getStoredToken, getStoredUser, setStoredUser } fro
 import SidebarNav from "./SidebarNav";
 import ToastProvider from "./ToastProvider";
 
+const adminOnlyRoutes = ["/settings", "/catalog", "/users", "/roles", "/audit"];
+
 export default function AppShell({ children }: { children: React.ReactNode }) {
   const pathname = usePathname();
   const router = useRouter();
@@ -42,6 +44,15 @@ export default function AppShell({ children }: { children: React.ReactNode }) {
       try {
         const me = await getMe();
         if (!mounted) return;
+        if (!["admin", "staff"].includes(me.role)) {
+          clearAuth();
+          router.replace("/login");
+          return;
+        }
+        if (adminOnlyRoutes.includes(pathname) && me.role !== "admin") {
+          router.replace("/");
+          return;
+        }
         setStoredUser(me);
         setUser(me);
       } catch {
@@ -96,7 +107,7 @@ export default function AppShell({ children }: { children: React.ReactNode }) {
               <div className="brand-subtitle">Library Service</div>
             </div>
           </div>
-          <SidebarNav />
+          <SidebarNav user={user} />
           <div className="sidebar-footer">
             <div className="sidebar-user">
               <div className="meta-label">Signed in</div>
@@ -107,7 +118,7 @@ export default function AppShell({ children }: { children: React.ReactNode }) {
               </button>
             </div>
             <div className="sidebar-note">
-              Operational console for catalog, users, and circulation tracking.
+              Staff portal for borrowings, returns, and fine tracking.
             </div>
           </div>
         </aside>
