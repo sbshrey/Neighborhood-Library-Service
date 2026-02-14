@@ -263,6 +263,7 @@ Coverage HTML report will be generated in `backend/htmlcov`.
 
 ## CI and Security
 - GitHub Actions workflow (`.github/workflows/ci.yml`) runs backend tests and frontend build on push/PR.
+- Optional Playwright smoke test can be triggered manually via **Actions → CI → Run workflow** and enabling `run_e2e_smoke`.
 - GitHub Actions workflow (`.github/workflows/secret-scan.yml`) runs Gitleaks on push/PR and daily schedule.
 
 ## What To Demo
