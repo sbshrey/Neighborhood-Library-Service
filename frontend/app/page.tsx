@@ -2,6 +2,7 @@
 
 import { useEffect, useMemo, useState } from "react";
 
+import ActionModal from "../components/ActionModal";
 import SearchableSelect from "../components/SearchableSelect";
 import { useToast } from "../components/ToastProvider";
 import {
@@ -49,6 +50,8 @@ const initialQuickUser: QuickUserForm = {
   role: "member",
 };
 
+type BorrowingActionModal = "borrow" | "return" | "fine" | "quick_user" | null;
+
 export default function BorrowingsPage() {
   const { showToast } = useToast();
   const [books, setBooks] = useState<any[]>([]);
@@ -74,6 +77,7 @@ export default function BorrowingsPage() {
   const [registerPageSize, setRegisterPageSize] = useState(10);
   const [registerHasNext, setRegisterHasNext] = useState(false);
   const [registerLoading, setRegisterLoading] = useState(false);
+  const [activeModal, setActiveModal] = useState<BorrowingActionModal>(null);
 
   const loanSortConfig: Record<string, { sort_by: string; sort_order: "asc" | "desc" }> = {
     due_asc: { sort_by: "due_at", sort_order: "asc" },
@@ -291,6 +295,7 @@ export default function BorrowingsPage() {
         days: Number(borrowForm.days),
       });
       setBorrowForm({ book_id: "", user_id: "", days: "14" });
+      setActiveModal(null);
       showToast({
         type: "success",
         title: "Borrowing recorded",
@@ -311,6 +316,7 @@ export default function BorrowingsPage() {
     try {
       await returnBook(Number(returnForm.loan_id));
       setReturnForm({ loan_id: "" });
+      setActiveModal(null);
       showToast({
         type: "success",
         title: "Return recorded",
@@ -341,6 +347,7 @@ export default function BorrowingsPage() {
         description: "Fine payment has been recorded with payment mode details.",
       });
       setFineForm({ loan_id: "", amount: "", payment_mode: "upi", reference: "" });
+      setActiveModal(null);
       await refresh();
     } catch (err: any) {
       showToast({
@@ -372,6 +379,7 @@ export default function BorrowingsPage() {
         phone: created.phone || "",
         role: created.role || "member",
       });
+      setActiveModal(null);
       showToast({
         type: "success",
         title: "New user created",
@@ -412,6 +420,7 @@ export default function BorrowingsPage() {
         title: "User details updated",
         description: "Borrowing form uses the latest profile values.",
       });
+      setActiveModal(null);
       await refresh();
     } catch (err: any) {
       showToast({
@@ -456,7 +465,56 @@ export default function BorrowingsPage() {
         </div>
       </section>
 
-      <section className="page-grid">
+      <section className="card action-dock">
+        <div className="card-header">
+          <h2>Desk Actions</h2>
+          <span className="pill">Popup Tools</span>
+        </div>
+        <div className="action-dock-grid">
+          <button
+            type="button"
+            className="action-tile"
+            onClick={() => setActiveModal("borrow")}
+            data-testid="borrow-open-modal"
+          >
+            <strong>Issue Book</strong>
+            <span>Record a fresh borrowing</span>
+            <em className="action-tile-cta">Open</em>
+          </button>
+          <button
+            type="button"
+            className="action-tile"
+            onClick={() => setActiveModal("return")}
+            data-testid="return-open-modal"
+          >
+            <strong>Accept Return</strong>
+            <span>{activeLoans.length} active loan(s) eligible</span>
+            <em className="action-tile-cta">Open</em>
+          </button>
+          <button
+            type="button"
+            className="action-tile"
+            onClick={() => setActiveModal("fine")}
+            data-testid="fine-open-modal"
+          >
+            <strong>Fine Collection</strong>
+            <span>{fineCandidateLoans.length} loan(s) with outstanding fine</span>
+            <em className="action-tile-cta">Open</em>
+          </button>
+          <button
+            type="button"
+            className="action-tile"
+            onClick={() => setActiveModal("quick_user")}
+            data-testid="quick-user-open-modal"
+          >
+            <strong>Quick User Desk</strong>
+            <span>Create/edit a user without leaving borrowings</span>
+            <em className="action-tile-cta">Open</em>
+          </button>
+        </div>
+      </section>
+
+      <section className="page-layout">
         <div className="table-card">
           <div className="card-header">
             <h2>Borrowing Register</h2>
@@ -531,11 +589,15 @@ export default function BorrowingsPage() {
                     </div>
                   </div>
                   <div className="loan-dates">
-                    <div className="meta-label">Due Date</div>
-                    <div className="meta-value">{formatDate(loan.due_at)}</div>
-                    <div className="meta-label">Status</div>
-                    <div className="meta-value">
-                      {loan.returned_at ? "Returned" : loan.is_overdue ? "Overdue" : "Active"}
+                    <div className="loan-date-block">
+                      <div className="meta-label">Due Date</div>
+                      <div className="meta-value">{formatDate(loan.due_at)}</div>
+                    </div>
+                    <div className="loan-date-block">
+                      <div className="meta-label">Status</div>
+                      <div className="meta-value">
+                        {loan.returned_at ? "Returned" : loan.is_overdue ? "Overdue" : "Active"}
+                      </div>
                     </div>
                   </div>
                   <div className="row-meta">
@@ -597,195 +659,214 @@ export default function BorrowingsPage() {
             </div>
           </div>
         </div>
-
-        <aside className="panel-stack">
-          <div className="panel-card">
-            <h2>Issue Book</h2>
-            <form onSubmit={handleBorrow}>
-              <SearchableSelect
-                label="Book"
-                value={borrowForm.book_id}
-                options={bookOptions}
-                placeholder="Search by title, author, ISBN, Book ID"
-                onChange={(value) => setBorrowForm({ ...borrowForm, book_id: value })}
-                required
-                testId="borrow-book-id"
-              />
-              <SearchableSelect
-                label="User"
-                value={borrowForm.user_id}
-                options={userOptions}
-                placeholder="Search by name, email, phone, User ID"
-                onChange={(value) => setBorrowForm({ ...borrowForm, user_id: value })}
-                required
-                testId="borrow-user-id"
-              />
-              <div>
-                <label>Days</label>
-                <input
-                  data-testid="borrow-days"
-                  type="number"
-                  min={1}
-                  max={365}
-                  value={borrowForm.days}
-                  onChange={(event) => setBorrowForm({ ...borrowForm, days: event.target.value })}
-                />
-              </div>
-              <button type="submit" data-testid="borrow-submit">
-                Record Borrowing
-              </button>
-            </form>
-          </div>
-
-          <div className="panel-card">
-            <h2>Accept Return</h2>
-            <form onSubmit={handleReturn}>
-              <SearchableSelect
-                label="Active Loan"
-                value={returnForm.loan_id}
-                options={activeLoanOptions}
-                placeholder="Search by loan ID, user, title, email, phone"
-                onChange={(value) => setReturnForm({ loan_id: value })}
-                required
-                testId="return-loan-id"
-              />
-              <button type="submit" className="secondary" data-testid="return-submit">
-                Record Return
-              </button>
-            </form>
-          </div>
-
-          <div className="panel-card">
-            <h2>Fine Collection</h2>
-            <form onSubmit={handleCollectFine}>
-              <SearchableSelect
-                label="Loan with outstanding fine"
-                value={fineForm.loan_id}
-                options={fineLoanOptions}
-                placeholder="Search by loan, user, title, ISBN"
-                onChange={(value) => {
-                  const selected = loans.find((loan) => String(loan.id) === value);
-                  setFineForm({
-                    loan_id: value,
-                    amount: selected ? String(Number(selected.fine_due || 0)) : "",
-                    payment_mode: "upi",
-                    reference: "",
-                  });
-                }}
-                required
-                testId="fine-loan-id"
-              />
-              <div>
-                <label>Amount (₹)</label>
-                <input
-                  data-testid="fine-amount"
-                  type="number"
-                  step="0.01"
-                  min={0.01}
-                  value={fineForm.amount}
-                  onChange={(event) => setFineForm({ ...fineForm, amount: event.target.value })}
-                  required
-                />
-              </div>
-              <div>
-                <label>Payment Mode</label>
-                <select
-                  data-testid="fine-payment-mode"
-                  value={fineForm.payment_mode}
-                  onChange={(event) => setFineForm({ ...fineForm, payment_mode: event.target.value })}
-                >
-                  <option value="upi">UPI</option>
-                  <option value="cash">Cash</option>
-                  <option value="card">Card</option>
-                  <option value="net_banking">Net Banking</option>
-                  <option value="wallet">Wallet</option>
-                  <option value="waiver">Waiver</option>
-                  <option value="adjustment">Adjustment</option>
-                </select>
-              </div>
-              <div>
-                <label>Reference</label>
-                <input
-                  data-testid="fine-reference"
-                  value={fineForm.reference}
-                  onChange={(event) => setFineForm({ ...fineForm, reference: event.target.value })}
-                  placeholder="Txn id / receipt id"
-                />
-              </div>
-              <button type="submit" className="secondary" data-testid="fine-submit" disabled={fineLoading}>
-                {fineLoading ? "Recording..." : "Record Fine Payment"}
-              </button>
-            </form>
-          </div>
-
-          <div className="panel-card">
-            <div className="card-header">
-              <h2>Quick User Desk</h2>
-              <span className="pill">From Borrowings</span>
-            </div>
-            <form onSubmit={handleCreateQuickUser}>
-              <div>
-                <label>Name</label>
-                <input
-                  data-testid="quick-user-name"
-                  value={quickUserForm.name}
-                  onChange={(event) => setQuickUserForm({ ...quickUserForm, name: event.target.value })}
-                  required
-                />
-              </div>
-              <div>
-                <label>Email</label>
-                <input
-                  data-testid="quick-user-email"
-                  value={quickUserForm.email}
-                  onChange={(event) => setQuickUserForm({ ...quickUserForm, email: event.target.value })}
-                />
-              </div>
-              <div>
-                <label>Phone</label>
-                <input
-                  data-testid="quick-user-phone"
-                  value={quickUserForm.phone}
-                  onChange={(event) => setQuickUserForm({ ...quickUserForm, phone: event.target.value })}
-                />
-              </div>
-              <div>
-                <label>Role</label>
-                <select
-                  data-testid="quick-user-role"
-                  value={quickUserForm.role}
-                  onChange={(event) => setQuickUserForm({ ...quickUserForm, role: event.target.value })}
-                >
-                  <option value="member">Member</option>
-                  <option value="staff">Staff</option>
-                  {authRole === "admin" ? <option value="admin">Admin</option> : null}
-                </select>
-              </div>
-              <div className="row-actions">
-                <button
-                  type="submit"
-                  className="secondary"
-                  disabled={userActionLoading}
-                  data-testid="quick-user-create"
-                >
-                  {userActionLoading ? "Saving..." : "Create User"}
-                </button>
-                <button
-                  type="button"
-                  onClick={handleUpdateQuickUser}
-                  disabled={userActionLoading}
-                  data-testid="quick-user-update"
-                >
-                  {userActionLoading ? "Saving..." : "Update Selected User"}
-                </button>
-              </div>
-              <p className="muted">
-                Select any user in the issue-book panel to load and edit their data instantly.
-              </p>
-            </form>
-          </div>
-        </aside>
       </section>
+
+      <ActionModal
+        open={activeModal === "borrow"}
+        title="Issue Book"
+        subtitle="Search and select the book + user, then capture loan duration."
+        onClose={() => setActiveModal(null)}
+        testId="borrow-action-modal"
+      >
+        <form onSubmit={handleBorrow}>
+          <SearchableSelect
+            label="Book"
+            value={borrowForm.book_id}
+            options={bookOptions}
+            placeholder="Search by title, author, ISBN, Book ID"
+            onChange={(value) => setBorrowForm({ ...borrowForm, book_id: value })}
+            required
+            testId="borrow-book-id"
+          />
+          <SearchableSelect
+            label="User"
+            value={borrowForm.user_id}
+            options={userOptions}
+            placeholder="Search by name, email, phone, User ID"
+            onChange={(value) => setBorrowForm({ ...borrowForm, user_id: value })}
+            required
+            testId="borrow-user-id"
+          />
+          <div>
+            <label>Days</label>
+            <input
+              data-testid="borrow-days"
+              type="number"
+              min={1}
+              max={365}
+              value={borrowForm.days}
+              onChange={(event) => setBorrowForm({ ...borrowForm, days: event.target.value })}
+            />
+          </div>
+          <div className="modal-actions">
+            <button type="submit" data-testid="borrow-submit">
+              Record Borrowing
+            </button>
+          </div>
+        </form>
+      </ActionModal>
+
+      <ActionModal
+        open={activeModal === "return"}
+        title="Accept Return"
+        subtitle="Find the active loan and close it to release inventory."
+        onClose={() => setActiveModal(null)}
+        testId="return-action-modal"
+      >
+        <form onSubmit={handleReturn}>
+          <SearchableSelect
+            label="Active Loan"
+            value={returnForm.loan_id}
+            options={activeLoanOptions}
+            placeholder="Search by loan ID, user, title, email, phone"
+            onChange={(value) => setReturnForm({ loan_id: value })}
+            required
+            testId="return-loan-id"
+          />
+          <div className="modal-actions">
+            <button type="submit" className="secondary" data-testid="return-submit">
+              Record Return
+            </button>
+          </div>
+        </form>
+      </ActionModal>
+
+      <ActionModal
+        open={activeModal === "fine"}
+        title="Fine Collection"
+        subtitle="Capture payment amount, method, and reference for due fines."
+        onClose={() => setActiveModal(null)}
+        testId="fine-action-modal"
+      >
+        <form onSubmit={handleCollectFine}>
+          <SearchableSelect
+            label="Loan with outstanding fine"
+            value={fineForm.loan_id}
+            options={fineLoanOptions}
+            placeholder="Search by loan, user, title, ISBN"
+            onChange={(value) => {
+              const selected = loans.find((loan) => String(loan.id) === value);
+              setFineForm({
+                loan_id: value,
+                amount: selected ? String(Number(selected.fine_due || 0)) : "",
+                payment_mode: "upi",
+                reference: "",
+              });
+            }}
+            required
+            testId="fine-loan-id"
+          />
+          <div>
+            <label>Amount (₹)</label>
+            <input
+              data-testid="fine-amount"
+              type="number"
+              step="0.01"
+              min={0.01}
+              value={fineForm.amount}
+              onChange={(event) => setFineForm({ ...fineForm, amount: event.target.value })}
+              required
+            />
+          </div>
+          <div>
+            <label>Payment Mode</label>
+            <select
+              data-testid="fine-payment-mode"
+              value={fineForm.payment_mode}
+              onChange={(event) => setFineForm({ ...fineForm, payment_mode: event.target.value })}
+            >
+              <option value="upi">UPI</option>
+              <option value="cash">Cash</option>
+              <option value="card">Card</option>
+              <option value="net_banking">Net Banking</option>
+              <option value="wallet">Wallet</option>
+              <option value="waiver">Waiver</option>
+              <option value="adjustment">Adjustment</option>
+            </select>
+          </div>
+          <div>
+            <label>Reference</label>
+            <input
+              data-testid="fine-reference"
+              value={fineForm.reference}
+              onChange={(event) => setFineForm({ ...fineForm, reference: event.target.value })}
+              placeholder="Txn id / receipt id"
+            />
+          </div>
+          <div className="modal-actions">
+            <button type="submit" className="secondary" data-testid="fine-submit" disabled={fineLoading}>
+              {fineLoading ? "Recording..." : "Record Fine Payment"}
+            </button>
+          </div>
+        </form>
+      </ActionModal>
+
+      <ActionModal
+        open={activeModal === "quick_user"}
+        title="Quick User Desk"
+        subtitle="Create or update user profiles directly from borrowing operations."
+        onClose={() => setActiveModal(null)}
+        testId="quick-user-action-modal"
+      >
+        <form onSubmit={handleCreateQuickUser}>
+          <div>
+            <label>Name</label>
+            <input
+              data-testid="quick-user-name"
+              value={quickUserForm.name}
+              onChange={(event) => setQuickUserForm({ ...quickUserForm, name: event.target.value })}
+              required
+            />
+          </div>
+          <div>
+            <label>Email</label>
+            <input
+              data-testid="quick-user-email"
+              value={quickUserForm.email}
+              onChange={(event) => setQuickUserForm({ ...quickUserForm, email: event.target.value })}
+            />
+          </div>
+          <div>
+            <label>Phone</label>
+            <input
+              data-testid="quick-user-phone"
+              value={quickUserForm.phone}
+              onChange={(event) => setQuickUserForm({ ...quickUserForm, phone: event.target.value })}
+            />
+          </div>
+          <div>
+            <label>Role</label>
+            <select
+              data-testid="quick-user-role"
+              value={quickUserForm.role}
+              onChange={(event) => setQuickUserForm({ ...quickUserForm, role: event.target.value })}
+            >
+              <option value="member">Member</option>
+              <option value="staff">Staff</option>
+              {authRole === "admin" ? <option value="admin">Admin</option> : null}
+            </select>
+          </div>
+          <div className="modal-actions">
+            <button
+              type="submit"
+              className="secondary"
+              disabled={userActionLoading}
+              data-testid="quick-user-create"
+            >
+              {userActionLoading ? "Saving..." : "Create User"}
+            </button>
+            <button
+              type="button"
+              onClick={handleUpdateQuickUser}
+              disabled={userActionLoading}
+              data-testid="quick-user-update"
+            >
+              {userActionLoading ? "Saving..." : "Update Selected User"}
+            </button>
+          </div>
+          <p className="muted">Select a user in Issue Book first to update their profile quickly.</p>
+        </form>
+      </ActionModal>
     </div>
   );
 }

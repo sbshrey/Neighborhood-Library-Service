@@ -4,6 +4,11 @@ type RequestOptions = RequestInit & {
   auth?: boolean;
 };
 
+type ValidationErrorItem = {
+  loc?: Array<string | number>;
+  msg?: string;
+};
+
 function getApiBase() {
   const configured = process.env.NEXT_PUBLIC_API_BASE?.trim();
   if (configured) return configured.replace(/\/+$/, "");
@@ -11,6 +16,24 @@ function getApiBase() {
     return `${window.location.protocol}//${window.location.hostname}:8000`;
   }
   return "http://localhost:8000";
+}
+
+export function formatApiErrorDetail(detail: unknown): string | undefined {
+  if (typeof detail === "string") return detail;
+  if (!Array.isArray(detail) || detail.length === 0) return undefined;
+  const items = detail as ValidationErrorItem[];
+  const messages = items
+    .slice(0, 3)
+    .map((item) => {
+      const field = Array.isArray(item.loc) ? String(item.loc[item.loc.length - 1] ?? "") : "";
+      const msg = item.msg?.trim() || "Invalid value";
+      if (!field || field === "body") return msg;
+      return `${field}: ${msg}`;
+    })
+    .filter(Boolean);
+  if (!messages.length) return undefined;
+  const suffix = items.length > 3 ? " (and more)" : "";
+  return messages.join(" | ") + suffix;
 }
 
 async function request<T>(path: string, options: RequestOptions = {}): Promise<T> {
@@ -42,7 +65,7 @@ async function request<T>(path: string, options: RequestOptions = {}): Promise<T
         window.location.href = "/login";
       }
     }
-    const detail = typeof body.detail === "string" ? body.detail : undefined;
+    const detail = formatApiErrorDetail(body.detail);
     throw new Error(detail || `Request failed (${res.status}) on ${path}`);
   }
   if (res.status === 204) {
@@ -128,7 +151,7 @@ async function upload<T>(path: string, file: File): Promise<T> {
   }
   if (!res.ok) {
     const body = await res.json().catch(() => ({}));
-    const detail = typeof body.detail === "string" ? body.detail : undefined;
+    const detail = formatApiErrorDetail(body.detail);
     throw new Error(detail || `Upload failed (${res.status}) on ${path}`);
   }
   return res.json();
@@ -151,6 +174,7 @@ export type AuditLog = {
   path: string;
   entity: string | null;
   entity_id: number | null;
+  change_diff: Record<string, unknown> | null;
   status_code: number;
   duration_ms: number;
   created_at: string;
@@ -199,6 +223,16 @@ export type FinePayment = {
   notes: string | null;
   collected_at: string;
   created_at: string;
+};
+
+export type FinePaymentLedgerItem = FinePayment & {
+  book_id: number;
+  book_title: string;
+  book_author: string;
+  book_isbn: string | null;
+  user_name: string;
+  user_email: string | null;
+  user_phone: string | null;
 };
 
 export type FineSummary = {
@@ -481,6 +515,31 @@ export async function createLoanFinePayment(
     method: "POST",
     body: JSON.stringify(payload),
   });
+}
+
+export async function queryFinePayments(params?: PageQuery & {
+  q?: string;
+  payment_mode?: string[];
+  user_id?: number;
+  loan_id?: number;
+  collected_from?: string;
+  collected_to?: string;
+  sort_by?: string;
+  sort_order?: "asc" | "desc";
+}) {
+  const query = new URLSearchParams();
+  appendQueryValue(query, "q", params?.q);
+  appendQueryValues(query, "payment_mode", params?.payment_mode);
+  appendQueryValue(query, "user_id", params?.user_id);
+  appendQueryValue(query, "loan_id", params?.loan_id);
+  appendQueryValue(query, "collected_from", params?.collected_from);
+  appendQueryValue(query, "collected_to", params?.collected_to);
+  appendQueryValue(query, "sort_by", params?.sort_by);
+  appendQueryValue(query, "sort_order", params?.sort_order);
+  appendQueryValue(query, "skip", params?.skip);
+  appendQueryValue(query, "limit", params?.limit);
+  const suffix = query.toString() ? `?${query.toString()}` : "";
+  return request<FinePaymentLedgerItem[]>(`/fine-payments${suffix}`, { method: "GET" });
 }
 
 export async function bootstrapAdmin(payload: {

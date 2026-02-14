@@ -56,6 +56,8 @@ make up-e2e-visual
 make backend
 make up-fast
 make test-backend
+make test-frontend-unit
+make test-frontend-coverage
 make test-e2e
 make precommit
 make clean
@@ -237,6 +239,16 @@ Visual demo mode (headed + video + screenshots + trace):
 ```bash
 npm run test:e2e:visual
 ```
+
+### Frontend Unit Tests + Coverage (Vitest)
+```bash
+cd frontend
+npm run test:unit
+npm run test:coverage
+```
+
+Coverage output is generated at:
+- `frontend/coverage/index.html`
 
 ---
 

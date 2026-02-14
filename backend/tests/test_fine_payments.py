@@ -7,6 +7,8 @@ from app.models import Loan
 
 
 from tests.constants import TEST_AUTH_VALUE
+
+
 @pytest.mark.asyncio
 async def test_fine_payment_collection_and_summary(client, db_session):
     bootstrap = await client.post(
@@ -96,3 +98,16 @@ async def test_fine_payment_collection_and_summary(client, db_session):
     )
     assert overpay.status_code == 400
     assert "exceeds outstanding fine" in overpay.json()["detail"]
+
+    ledger = await client.get(
+        "/fine-payments",
+        params={"q": "Fine Member", "payment_mode": "upi", "limit": 10},
+        headers=admin_headers,
+    )
+    assert ledger.status_code == 200
+    rows = ledger.json()
+    assert len(rows) >= 1
+    assert rows[0]["loan_id"] == loan_id
+    assert rows[0]["user_name"] == "Fine Member"
+    assert rows[0]["book_title"] == "Fine Book"
+    assert rows[0]["payment_mode"] == "upi"

@@ -192,6 +192,20 @@ export default function CatalogPage() {
       showToast({ type: "error", title: "Total copies must be 1 or higher" });
       return;
     }
+    const publishedYear = bookForm.published_year.trim()
+      ? Number(bookForm.published_year)
+      : undefined;
+    if (
+      publishedYear !== undefined
+      && (!Number.isInteger(publishedYear) || publishedYear < 0 || publishedYear > 2100)
+    ) {
+      showToast({
+        type: "error",
+        title: "Invalid published year",
+        description: "Published Year must be between 0 and 2100.",
+      });
+      return;
+    }
 
     try {
       if (modalMode === "edit") {
@@ -202,9 +216,7 @@ export default function CatalogPage() {
           subject: bookForm.subject.trim() || null,
           rack_number: bookForm.rack_number.trim() || null,
           isbn: bookForm.isbn.trim() || null,
-          published_year: bookForm.published_year.trim()
-            ? Number(bookForm.published_year)
-            : null,
+          published_year: publishedYear ?? null,
           copies_total: copies,
         });
         showToast({ type: "success", title: "Book updated successfully" });
@@ -214,9 +226,7 @@ export default function CatalogPage() {
           subject: bookForm.subject.trim() || undefined,
           rack_number: bookForm.rack_number.trim() || undefined,
           isbn: bookForm.isbn.trim() || undefined,
-          published_year: bookForm.published_year.trim()
-            ? Number(bookForm.published_year)
-            : undefined,
+          published_year: publishedYear,
           copies_total: copies,
         });
         showToast({ type: "success", title: "Book created successfully" });
@@ -530,6 +540,8 @@ export default function CatalogPage() {
               <input
                 type="number"
                 data-testid="book-year"
+                min={0}
+                max={2100}
                 value={bookForm.published_year}
                 onChange={(event) =>
                   setBookForm({ ...bookForm, published_year: event.target.value })

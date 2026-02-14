@@ -1,7 +1,7 @@
 SHELL := /bin/bash
 .DEFAULT_GOAL := help
 
-.PHONY: help install install-backend install-frontend migrate backend frontend up up-fast up-e2e up-e2e-visual test-backend test-e2e test-e2e-visual precommit-install precommit report clean reset-db rebuild-db
+.PHONY: help install install-backend install-frontend migrate backend frontend up up-fast up-e2e up-e2e-visual test-backend test-frontend-unit test-frontend-coverage test-e2e test-e2e-visual precommit-install precommit report clean reset-db rebuild-db
 
 DB_HOST ?= localhost
 DB_PORT ?= 5432
@@ -43,6 +43,12 @@ up-e2e-visual: ## Start stack and run headed Playwright demo tests
 test-backend: ## Run backend tests with coverage
 	cd backend && uv run pytest
 
+test-frontend-unit: ## Run frontend unit tests (Vitest)
+	cd frontend && npm run test:unit
+
+test-frontend-coverage: ## Run frontend unit tests with coverage report
+	cd frontend && npm run test:coverage
+
 test-e2e: ## Run Playwright tests (expects services already running)
 	cd frontend && npm run test:e2e
 
@@ -60,7 +66,7 @@ report: ## Open Playwright HTML report
 
 clean: ## Remove local build/test/cache artifacts
 	rm -rf backend/.pytest_cache backend/htmlcov backend/.coverage \
-		frontend/.next frontend/test-results frontend/playwright-report \
+		frontend/.next frontend/test-results frontend/playwright-report frontend/coverage \
 		.run-logs .uv-cache
 
 reset-db: ## Drop+recreate local Postgres DB and run migrations (requires CONFIRM=YES)
