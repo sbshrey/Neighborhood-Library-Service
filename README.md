@@ -259,6 +259,10 @@ Coverage output is generated at:
   - `AUTH_LOGIN_RATE_LIMIT_PER_WINDOW`
   - `AUTH_LOGIN_RATE_LIMIT_WINDOW_SECONDS`
 - Audit logs are emitted for mutating API calls and can be toggled with `AUDIT_LOG_ENABLED`.
+- API response caching currently uses in-memory process-local storage (good for local/demo runs).
+  For multi-instance production deployments, use a shared cache like Redis to avoid stale/uneven cache behavior across nodes.
+- Frontend currently uses explicit fetch hooks/state instead of TanStack Query to keep take-home complexity controlled.
+  If this were extended to production scale, migrating API data flows to TanStack Query would improve cache invalidation, refetch, and loading/error consistency.
 - Circulation policy knobs:
   - `CIRCULATION_MAX_ACTIVE_LOANS_PER_USER`
   - `CIRCULATION_MAX_LOAN_DAYS`

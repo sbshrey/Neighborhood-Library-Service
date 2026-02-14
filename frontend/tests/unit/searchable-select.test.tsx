@@ -2,7 +2,7 @@
 
 import { useState } from "react";
 import { describe, expect, test } from "vitest";
-import { render, screen } from "@testing-library/react";
+import { fireEvent, render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 
 import SearchableSelect from "../../components/SearchableSelect";
@@ -39,6 +39,16 @@ function MultiSelectHarness() {
   );
 }
 
+function SingleWithInitialHarness() {
+  const [value, setValue] = useState("2");
+  return (
+    <div>
+      <SearchableSelect label="Book" value={value} onChange={setValue} options={options} />
+      <output data-testid="single-value-initial">{value}</output>
+    </div>
+  );
+}
+
 describe("SearchableSelect", () => {
   test("single-select searches and picks option", async () => {
     const user = userEvent.setup();
@@ -69,5 +79,50 @@ describe("SearchableSelect", () => {
 
     await user.click(screen.getByRole("button", { name: "Clear" }));
     expect(screen.getByTestId("multi-value").textContent).toBe("");
+  });
+
+  test("single-select keyboard controls and outside click reset", async () => {
+    const user = userEvent.setup();
+    render(<SingleWithInitialHarness />);
+
+    const input = screen.getByPlaceholderText("Search and select...");
+    expect((input as HTMLInputElement).value).toBe("Refactoring");
+
+    await user.type(input, " clean");
+    fireEvent.keyDown(input, { key: "Escape" });
+    expect((input as HTMLInputElement).value).toBe("Refactoring");
+
+    await user.click(input);
+    await user.clear(input);
+    await user.type(input, "ddd");
+    fireEvent.keyDown(input, { key: "ArrowDown" });
+    fireEvent.keyDown(input, { key: "Enter" });
+    expect(screen.getByTestId("single-value-initial").textContent).toBe("3");
+
+    await user.clear(input);
+    await user.type(input, "xyz-no-match");
+    expect(screen.getByText("No matches found.")).toBeTruthy();
+    fireEvent.mouseDown(document.body);
+    expect((input as HTMLInputElement).value).toBe("");
+  });
+
+  test("multi-select chip removal and escape behavior", async () => {
+    const user = userEvent.setup();
+    render(<MultiSelectHarness />);
+
+    const input = screen.getByPlaceholderText("Search and select...");
+    await user.click(input);
+    await user.click(screen.getByRole("button", { name: "Clean Code" }));
+    await user.click(screen.getByRole("button", { name: "Refactoring" }));
+
+    const chipButtons = screen
+      .getAllByRole("button")
+      .filter((element) => element.className.includes("combo-chip"));
+    await user.click(chipButtons[0]);
+    expect(screen.getByTestId("multi-value").textContent).toBe("2");
+
+    await user.type(input, "ddd");
+    fireEvent.keyDown(input, { key: "Escape" });
+    expect((input as HTMLInputElement).value).toBe("ddd");
   });
 });

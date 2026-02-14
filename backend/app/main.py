@@ -1,4 +1,5 @@
 from collections import defaultdict, deque
+from contextlib import asynccontextmanager
 from datetime import date, datetime
 from decimal import Decimal
 import json
@@ -35,7 +36,16 @@ from .utils.request_context import (
 )
 from .utils.security import decode_access_token
 
-app = FastAPI(title=settings.api_title, version=settings.api_version)
+
+@asynccontextmanager
+async def lifespan(_: FastAPI):
+    if settings.auto_create_schema:
+        async with engine.begin() as conn:
+            await conn.run_sync(Base.metadata.create_all)
+    yield
+
+
+app = FastAPI(title=settings.api_title, version=settings.api_version, lifespan=lifespan)
 audit_logger = logging.getLogger("audit")
 login_attempts: dict[str, deque[float]] = defaultdict(deque)
 
@@ -333,13 +343,6 @@ async def invalidate_api_cache_on_mutation(request: Request, call_next):
     if request.method in {"POST", "PATCH", "PUT", "DELETE"} and response.status_code < 500:
         await api_cache.invalidate_all()
     return response
-
-
-@app.on_event("startup")
-async def startup() -> None:
-    if settings.auto_create_schema:
-        async with engine.begin() as conn:
-            await conn.run_sync(Base.metadata.create_all)
 
 
 @app.get("/health")

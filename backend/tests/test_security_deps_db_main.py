@@ -251,7 +251,8 @@ async def test_startup_respects_auto_create_schema(monkeypatch):
     fake_conn = _FakeConn()
     monkeypatch.setattr(main_module, "engine", _FakeEngine(fake_conn))
     monkeypatch.setattr(settings, "auto_create_schema", True)
-    await main_module.startup()
+    async with main_module.lifespan(main_module.app):
+        pass
     assert fake_conn.ran_sync is True
 
 
