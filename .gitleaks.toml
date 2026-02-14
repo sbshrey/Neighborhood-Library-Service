@@ -1,0 +1,11 @@
+title = "Neighborhood Library Service Gitleaks Config"
+
+[allowlist]
+description = "Allow deterministic fake credentials used in automated tests."
+paths = [
+  '''backend/tests/.*''',
+  '''frontend/tests/.*''',
+]
+regexes = [
+  '''(?i)(admin@12345|unit-test-not-secret|[a-z0-9_-]*pass[a-z0-9_@-]*)''',
+]
