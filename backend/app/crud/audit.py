@@ -11,9 +11,11 @@ class CRUDAudit(SQLQueryRunner):
         db: AsyncSession,
         *,
         q: str | None,
-        method: str | None,
-        entity: str | None,
+        method: list[str] | None,
+        entity: list[str] | None,
         status_code: int | None,
+        sort_by: str = "created_at",
+        sort_order: str = "desc",
         skip: int,
         limit: int,
     ) -> list[AuditLog]:
@@ -31,13 +33,23 @@ class CRUDAudit(SQLQueryRunner):
                     cast(AuditLog.status_code, String).ilike(like),
                 )
             )
-        if method:
-            stmt = stmt.where(AuditLog.method == method.upper())
-        if entity:
-            stmt = stmt.where(AuditLog.entity == entity.lower())
+        normalized_methods = [value.strip().upper() for value in (method or []) if value.strip()]
+        if normalized_methods:
+            stmt = stmt.where(AuditLog.method.in_(normalized_methods))
+        normalized_entities = [value.strip().lower() for value in (entity or []) if value.strip()]
+        if normalized_entities:
+            stmt = stmt.where(AuditLog.entity.in_(normalized_entities))
         if status_code is not None:
             stmt = stmt.where(AuditLog.status_code == status_code)
-        stmt = stmt.order_by(AuditLog.created_at.desc()).offset(skip).limit(limit)
+        sort_columns = {
+            "created_at": AuditLog.created_at,
+            "status_code": AuditLog.status_code,
+            "duration_ms": AuditLog.duration_ms,
+            "id": AuditLog.id,
+        }
+        sort_column = sort_columns.get(sort_by, AuditLog.created_at)
+        order = sort_column.desc() if sort_order.lower() == "desc" else sort_column.asc()
+        stmt = stmt.order_by(order, AuditLog.id.desc()).offset(skip).limit(limit)
         return await self.scalars_all(db, stmt)
 
 

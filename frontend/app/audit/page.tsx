@@ -4,7 +4,7 @@ import { useEffect, useMemo, useState } from "react";
 
 import SearchableSelect from "../../components/SearchableSelect";
 import { useToast } from "../../components/ToastProvider";
-import { getAuditLogs } from "../../lib/api";
+import { queryAuditLogs } from "../../lib/api";
 
 function formatTime(value: string) {
   const date = new Date(value);
@@ -18,15 +18,36 @@ export default function AuditPage() {
   const [search, setSearch] = useState("");
   const [method, setMethod] = useState<string[]>([]);
   const [entity, setEntity] = useState<string[]>([]);
+  const [sortBy, setSortBy] = useState("time_desc");
+  const [page, setPage] = useState(1);
+  const [pageSize, setPageSize] = useState(20);
+  const [hasNextPage, setHasNextPage] = useState(false);
   const [loading, setLoading] = useState(false);
+
+  const sortConfigMap: Record<string, { sort_by: string; sort_order: "asc" | "desc" }> = {
+    time_desc: { sort_by: "created_at", sort_order: "desc" },
+    time_asc: { sort_by: "created_at", sort_order: "asc" },
+    status_desc: { sort_by: "status_code", sort_order: "desc" },
+    status_asc: { sort_by: "status_code", sort_order: "asc" },
+    duration_desc: { sort_by: "duration_ms", sort_order: "desc" },
+    duration_asc: { sort_by: "duration_ms", sort_order: "asc" },
+  };
 
   const loadEvents = async () => {
     setLoading(true);
     try {
-      const params: any = { limit: 300 };
-      if (search.trim()) params.q = search.trim();
-      const logs = await getAuditLogs(params);
+      const sortConfig = sortConfigMap[sortBy] || sortConfigMap.time_desc;
+      const logs = await queryAuditLogs({
+        q: search.trim() || undefined,
+        method,
+        entity,
+        sort_by: sortConfig.sort_by,
+        sort_order: sortConfig.sort_order,
+        skip: (page - 1) * pageSize,
+        limit: pageSize,
+      });
       setEvents(logs);
+      setHasNextPage(logs.length === pageSize);
     } catch (err: any) {
       showToast({
         type: "error",
@@ -40,7 +61,11 @@ export default function AuditPage() {
 
   useEffect(() => {
     loadEvents();
-  }, []);
+  }, [page, pageSize, search, method, entity, sortBy]);
+
+  useEffect(() => {
+    setPage(1);
+  }, [search, method, entity, sortBy, pageSize]);
 
   const methodOptions = [
     { value: "POST", label: "POST" },
@@ -54,17 +79,14 @@ export default function AuditPage() {
     return dynamicEntities.map((value) => ({ value, label: String(value) }));
   }, [events]);
 
-  const visibleEvents = useMemo(
-    () =>
-      events.filter((event) => {
-        const methodValue = String(event.method || "");
-        const entityValue = event.entity ? String(event.entity) : "";
-        if (method.length > 0 && !method.includes(methodValue)) return false;
-        if (entity.length > 0 && !entity.includes(entityValue)) return false;
-        return true;
-      }),
-    [events, method, entity]
-  );
+  const sortOptions = [
+    { value: "time_desc", label: "Latest first" },
+    { value: "time_asc", label: "Oldest first" },
+    { value: "status_desc", label: "Status high-low" },
+    { value: "status_asc", label: "Status low-high" },
+    { value: "duration_desc", label: "Duration high-low" },
+    { value: "duration_asc", label: "Duration low-high" },
+  ];
 
   return (
     <div className="page-layout">
@@ -115,14 +137,30 @@ export default function AuditPage() {
             />
           </div>
           <div className="filter-field">
-            <label>&nbsp;</label>
-            <button onClick={loadEvents} className="ghost">
-              Apply Filters
-            </button>
+            <SearchableSelect
+              label="Sort"
+              value={sortBy}
+              options={sortOptions}
+              placeholder="Sort logs"
+              onChange={setSortBy}
+              testId="audit-sort"
+            />
+          </div>
+          <div className="filter-field">
+            <label>Page Size</label>
+            <select
+              value={pageSize}
+              onChange={(event) => setPageSize(Number(event.target.value))}
+              data-testid="audit-page-size"
+            >
+              <option value={20}>20</option>
+              <option value={50}>50</option>
+              <option value={100}>100</option>
+            </select>
           </div>
         </div>
         <div className="table">
-          {visibleEvents.map((event) => (
+          {events.map((event) => (
             <div key={event.id} className="row">
               <div>
                 <strong>{event.method} {event.path}</strong>
@@ -144,15 +182,40 @@ export default function AuditPage() {
               </div>
             </div>
           ))}
-          {visibleEvents.length === 0 ? (
+          {events.length === 0 ? (
             <div className="row">
               <div>
-                <strong>No audit logs found.</strong>
+                <strong>{loading ? "Loading audit logs..." : "No audit logs found."}</strong>
               </div>
               <div />
               <div />
             </div>
           ) : null}
+        </div>
+        <div className="table-footer">
+          <div className="meta-label">
+            Page {page} · Showing {events.length} record{events.length === 1 ? "" : "s"}
+          </div>
+          <div className="row-actions">
+            <button
+              type="button"
+              className="ghost small"
+              onClick={() => setPage((current) => Math.max(1, current - 1))}
+              disabled={page === 1 || loading}
+              data-testid="audit-prev-page"
+            >
+              Previous
+            </button>
+            <button
+              type="button"
+              className="ghost small"
+              onClick={() => setPage((current) => current + 1)}
+              disabled={!hasNextPage || loading}
+              data-testid="audit-next-page"
+            >
+              Next
+            </button>
+          </div>
         </div>
       </section>
     </div>

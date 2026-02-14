@@ -11,6 +11,7 @@ import {
   getBooks,
   getLoans,
   getUsers,
+  queryLoans,
   returnBook,
   updateUser,
 } from "../lib/api";
@@ -55,6 +56,7 @@ export default function BorrowingsPage() {
   const [loans, setLoans] = useState<any[]>([]);
   const [statusFilter, setStatusFilter] = useState("active");
   const [registerSearch, setRegisterSearch] = useState("");
+  const [loanSort, setLoanSort] = useState("due_asc");
   const [borrowForm, setBorrowForm] = useState({ book_id: "", user_id: "", days: "14" });
   const [returnForm, setReturnForm] = useState({ loan_id: "" });
   const [fineForm, setFineForm] = useState({
@@ -67,6 +69,67 @@ export default function BorrowingsPage() {
   const [quickUserForm, setQuickUserForm] = useState<QuickUserForm>(initialQuickUser);
   const [userActionLoading, setUserActionLoading] = useState(false);
   const [authRole, setAuthRole] = useState("staff");
+  const [registerLoans, setRegisterLoans] = useState<any[]>([]);
+  const [registerPage, setRegisterPage] = useState(1);
+  const [registerPageSize, setRegisterPageSize] = useState(10);
+  const [registerHasNext, setRegisterHasNext] = useState(false);
+  const [registerLoading, setRegisterLoading] = useState(false);
+
+  const loanSortConfig: Record<string, { sort_by: string; sort_order: "asc" | "desc" }> = {
+    due_asc: { sort_by: "due_at", sort_order: "asc" },
+    due_desc: { sort_by: "due_at", sort_order: "desc" },
+    borrowed_desc: { sort_by: "borrowed_at", sort_order: "desc" },
+    borrowed_asc: { sort_by: "borrowed_at", sort_order: "asc" },
+    id_desc: { sort_by: "id", sort_order: "desc" },
+    id_asc: { sort_by: "id", sort_order: "asc" },
+    fine_desc: { sort_by: "due_at", sort_order: "asc" },
+    fine_asc: { sort_by: "due_at", sort_order: "desc" },
+  };
+
+  const loadRegister = async () => {
+    setRegisterLoading(true);
+    try {
+      const sortConfig = loanSortConfig[loanSort] || loanSortConfig.due_asc;
+      const params: {
+        q?: string;
+        active?: boolean;
+        overdue_only?: boolean;
+        sort_by: string;
+        sort_order: "asc" | "desc";
+        skip: number;
+        limit: number;
+      } = {
+        q: registerSearch.trim() || undefined,
+        sort_by: sortConfig.sort_by,
+        sort_order: sortConfig.sort_order,
+        skip: (registerPage - 1) * registerPageSize,
+        limit: registerPageSize,
+      };
+      if (statusFilter === "active") params.active = true;
+      if (statusFilter === "returned") params.active = false;
+      if (statusFilter === "overdue") {
+        params.active = true;
+        params.overdue_only = true;
+      }
+      const rows = await queryLoans(params);
+      if (loanSort === "fine_desc" || loanSort === "fine_asc") {
+        rows.sort((a, b) => {
+          const delta = Number(a.fine_due || 0) - Number(b.fine_due || 0);
+          return loanSort === "fine_desc" ? -delta : delta;
+        });
+      }
+      setRegisterLoans(rows);
+      setRegisterHasNext(rows.length === registerPageSize);
+    } catch (err: any) {
+      showToast({
+        type: "error",
+        title: "Unable to load borrowing register",
+        description: err.message || "Request failed",
+      });
+    } finally {
+      setRegisterLoading(false);
+    }
+  };
 
   const refresh = async (showSuccess = false) => {
     try {
@@ -74,6 +137,7 @@ export default function BorrowingsPage() {
       setBooks(booksData);
       setUsers(usersData);
       setLoans(loansData);
+      await loadRegister();
       if (showSuccess) {
         showToast({ type: "success", title: "Borrowings refreshed" });
       }
@@ -96,6 +160,14 @@ export default function BorrowingsPage() {
     }
     refresh();
   }, []);
+
+  useEffect(() => {
+    loadRegister();
+  }, [statusFilter, registerSearch, loanSort, registerPage, registerPageSize]);
+
+  useEffect(() => {
+    setRegisterPage(1);
+  }, [statusFilter, registerSearch, loanSort, registerPageSize]);
 
   useEffect(() => {
     if (!borrowForm.user_id) return;
@@ -140,6 +212,17 @@ export default function BorrowingsPage() {
     [loans, stats.active, stats.overdue]
   );
 
+  const loanSortOptions = [
+    { value: "due_asc", label: "Due date nearest" },
+    { value: "due_desc", label: "Due date farthest" },
+    { value: "borrowed_desc", label: "Borrowed newest" },
+    { value: "borrowed_asc", label: "Borrowed oldest" },
+    { value: "fine_desc", label: "Fine due high-low" },
+    { value: "fine_asc", label: "Fine due low-high" },
+    { value: "id_desc", label: "Loan ID newest" },
+    { value: "id_asc", label: "Loan ID oldest" },
+  ];
+
   const bookLookup = useMemo(() => new Map(books.map((book) => [book.id, book])), [books]);
   const userLookup = useMemo(() => new Map(users.map((user) => [user.id, user])), [users]);
   const activeLoans = useMemo(() => loans.filter((loan) => !loan.returned_at), [loans]);
@@ -147,32 +230,6 @@ export default function BorrowingsPage() {
     () => loans.filter((loan) => Number(loan.fine_due || 0) > 0),
     [loans]
   );
-
-  const visibleLoans = useMemo(() => {
-    const normalizedSearch = registerSearch.trim().toLowerCase();
-    return loans.filter((loan) => {
-      if (statusFilter === "active" && loan.returned_at) return false;
-      if (statusFilter === "returned" && !loan.returned_at) return false;
-      if (statusFilter === "overdue" && !loan.is_overdue) return false;
-      if (!normalizedSearch) return true;
-
-      const book = bookLookup.get(loan.book_id);
-      const user = userLookup.get(loan.user_id);
-      const haystack = [
-        loan.id,
-        book?.id,
-        book?.title,
-        book?.isbn,
-        user?.name,
-        user?.email,
-        user?.phone,
-      ]
-        .filter(Boolean)
-        .join(" ")
-        .toLowerCase();
-      return haystack.includes(normalizedSearch);
-    });
-  }, [loans, statusFilter, registerSearch, bookLookup, userLookup]);
 
   const bookOptions = useMemo(
     () =>
@@ -428,9 +485,31 @@ export default function BorrowingsPage() {
                 placeholder="Search by loan ID, book title/ISBN, user name/email/phone"
               />
             </div>
+            <div className="filter-field">
+              <SearchableSelect
+                label="Sort"
+                value={loanSort}
+                options={loanSortOptions}
+                placeholder="Sort register"
+                onChange={setLoanSort}
+                testId="loan-sort"
+              />
+            </div>
+            <div className="filter-field">
+              <label>Page Size</label>
+              <select
+                value={registerPageSize}
+                onChange={(event) => setRegisterPageSize(Number(event.target.value))}
+                data-testid="loan-page-size"
+              >
+                <option value={10}>10</option>
+                <option value={20}>20</option>
+                <option value={50}>50</option>
+              </select>
+            </div>
           </div>
           <div className="table">
-            {visibleLoans.map((loan) => {
+            {registerLoans.map((loan) => {
               const book = bookLookup.get(loan.book_id);
               const user = userLookup.get(loan.user_id);
               return (
@@ -477,15 +556,45 @@ export default function BorrowingsPage() {
                 </div>
               );
             })}
-            {visibleLoans.length === 0 && (
+            {registerLoans.length === 0 && (
               <div className="row">
                 <div>
-                  <strong>No borrowing records match the current filters.</strong>
+                  <strong>
+                    {registerLoading
+                      ? "Loading borrowing register..."
+                      : "No borrowing records match the current filters."}
+                  </strong>
                 </div>
                 <div />
                 <div />
               </div>
             )}
+          </div>
+          <div className="table-footer">
+            <div className="meta-label">
+              Page {registerPage} · Showing {registerLoans.length} record
+              {registerLoans.length === 1 ? "" : "s"}
+            </div>
+            <div className="row-actions">
+              <button
+                type="button"
+                className="ghost small"
+                onClick={() => setRegisterPage((current) => Math.max(1, current - 1))}
+                disabled={registerPage === 1 || registerLoading}
+                data-testid="loan-prev-page"
+              >
+                Previous
+              </button>
+              <button
+                type="button"
+                className="ghost small"
+                onClick={() => setRegisterPage((current) => current + 1)}
+                disabled={!registerHasNext || registerLoading}
+                data-testid="loan-next-page"
+              >
+                Next
+              </button>
+            </div>
           </div>
         </div>
 

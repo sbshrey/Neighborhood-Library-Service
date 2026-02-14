@@ -288,7 +288,6 @@ test.describe('Neighborhood Library Demo Journeys', () => {
       await page.goto('/audit');
       await expect(page.getByRole('heading', { name: 'Audit Timeline' })).toBeVisible();
       await page.getByPlaceholder('Path, method, role, status, actor, entity id').fill('/users');
-      await page.getByRole('button', { name: 'Apply Filters' }).click();
       await expect(page.getByText('POST /users').first()).toBeVisible();
       await snap('admin-audit-visible');
     });

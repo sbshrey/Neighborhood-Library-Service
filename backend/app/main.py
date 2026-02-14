@@ -25,6 +25,7 @@ from .utils.request_context import (
     reset_actor_context,
     set_actor_context,
 )
+from .utils.api_cache import api_cache
 from .utils.security import decode_access_token
 
 app = FastAPI(title=settings.api_title, version=settings.api_version)
@@ -190,6 +191,14 @@ async def audit_requests(request: Request, call_next):
             )
         except Exception:
             audit_logger.exception("Failed to persist audit log entry")
+    return response
+
+
+@app.middleware("http")
+async def invalidate_api_cache_on_mutation(request: Request, call_next):
+    response = await call_next(request)
+    if request.method in {"POST", "PATCH", "PUT", "DELETE"} and response.status_code < 500:
+        await api_cache.invalidate_all()
     return response
 
 

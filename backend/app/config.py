@@ -33,6 +33,10 @@ class Settings(BaseSettings):
     circulation_max_active_loans_per_user: int = 5
     circulation_max_loan_days: int = 21
     overdue_fine_per_day: float = 2.0
+    api_cache_enabled: bool = True
+    api_cache_ttl_seconds: int = 45
+    api_cache_redis_url: str | None = None
+    api_cache_namespace: str = "nls:api-cache"
 
 
 def _ensure_async_driver(url: str) -> str:

@@ -4,7 +4,7 @@ import { useEffect, useMemo, useState } from "react";
 import ActionModal from "../../components/ActionModal";
 import SearchableSelect from "../../components/SearchableSelect";
 import { useToast } from "../../components/ToastProvider";
-import { createUser, deleteUser, getUsers, updateUser } from "../../lib/api";
+import { createUser, deleteUser, getUsers, queryUsers, updateUser } from "../../lib/api";
 
 const initialUserForm = {
   name: "",
@@ -18,16 +18,46 @@ type UserModalMode = "create" | "edit" | null;
 export default function UsersPage() {
   const { showToast } = useToast();
   const [users, setUsers] = useState<any[]>([]);
+  const [allUsers, setAllUsers] = useState<any[]>([]);
   const [roleFilter, setRoleFilter] = useState<string[]>([]);
   const [search, setSearch] = useState("");
+  const [sortBy, setSortBy] = useState("name_asc");
+  const [page, setPage] = useState(1);
+  const [pageSize, setPageSize] = useState(10);
+  const [hasNextPage, setHasNextPage] = useState(false);
+  const [loading, setLoading] = useState(false);
 
   const [modalMode, setModalMode] = useState<UserModalMode>(null);
   const [activeUserId, setActiveUserId] = useState<number | null>(null);
   const [userForm, setUserForm] = useState(initialUserForm);
 
-  const refresh = async (showSuccess = false) => {
+  const sortConfigMap: Record<string, { sort_by: string; sort_order: "asc" | "desc" }> = {
+    name_asc: { sort_by: "name", sort_order: "asc" },
+    name_desc: { sort_by: "name", sort_order: "desc" },
+    role_asc: { sort_by: "role", sort_order: "asc" },
+    role_desc: { sort_by: "role", sort_order: "desc" },
+    id_asc: { sort_by: "id", sort_order: "asc" },
+    id_desc: { sort_by: "id", sort_order: "desc" },
+  };
+
+  const loadStats = async () => {
+    setAllUsers(await getUsers());
+  };
+
+  const loadPage = async (showSuccess = false) => {
+    setLoading(true);
     try {
-      setUsers(await getUsers());
+      const sortConfig = sortConfigMap[sortBy] || sortConfigMap.name_asc;
+      const rows = await queryUsers({
+        q: search.trim() || undefined,
+        role: roleFilter,
+        sort_by: sortConfig.sort_by,
+        sort_order: sortConfig.sort_order,
+        skip: (page - 1) * pageSize,
+        limit: pageSize,
+      });
+      setUsers(rows);
+      setHasNextPage(rows.length === pageSize);
       if (showSuccess) {
         showToast({ type: "success", title: "Users refreshed" });
       }
@@ -37,6 +67,16 @@ export default function UsersPage() {
         title: "Unable to load users",
         description: err.message || "Request failed",
       });
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const refresh = async (showSuccess = false) => {
+    try {
+      await Promise.all([loadPage(showSuccess), loadStats()]);
+    } catch {
+      // Errors are already handled in child loaders.
     }
   };
 
@@ -44,33 +84,41 @@ export default function UsersPage() {
     refresh();
   }, []);
 
+  useEffect(() => {
+    loadPage();
+  }, [search, roleFilter, sortBy, page, pageSize]);
+
+  useEffect(() => {
+    setPage(1);
+  }, [search, roleFilter, sortBy, pageSize]);
+
   const stats = useMemo(() => {
-    const total = users.length;
-    const members = users.filter((user) => user.role === "member").length;
-    const staff = users.filter((user) => user.role === "staff").length;
-    const admins = users.filter((user) => user.role === "admin").length;
+    const total = allUsers.length;
+    const members = allUsers.filter((user) => user.role === "member").length;
+    const staff = allUsers.filter((user) => user.role === "staff").length;
+    const admins = allUsers.filter((user) => user.role === "admin").length;
     return { total, members, staff, admins };
-  }, [users]);
+  }, [allUsers]);
 
   const roleOptions = useMemo(() => {
-    const values = Array.from(new Set(users.map((user) => user.role).filter(Boolean)));
+    const values = Array.from(new Set(allUsers.map((user) => user.role).filter(Boolean)));
     return values.sort((a, b) => a.localeCompare(b));
-  }, [users]);
+  }, [allUsers]);
 
   const roleFilterOptions = useMemo(
     () => roleOptions.map((role) => ({ value: role, label: role, keywords: role })),
     [roleOptions]
   );
 
-  const visibleUsers = useMemo(() => {
-    const normalized = search.trim().toLowerCase();
-    return users.filter((user) => {
-      if (roleFilter.length > 0 && !roleFilter.includes(user.role)) return false;
-      if (!normalized) return true;
-      const haystack = `${user.id} ${user.name} ${user.email || ""} ${user.phone || ""}`.toLowerCase();
-      return haystack.includes(normalized);
-    });
-  }, [users, roleFilter, search]);
+  const sortOptions = [
+    { value: "name_asc", label: "Name A-Z" },
+    { value: "name_desc", label: "Name Z-A" },
+    { value: "role_asc", label: "Role A-Z" },
+    { value: "role_desc", label: "Role Z-A" },
+    { value: "id_desc", label: "User ID Newest" },
+    { value: "id_asc", label: "User ID Oldest" },
+  ];
+
 
   const closeModal = () => setModalMode(null);
 
@@ -216,9 +264,31 @@ export default function UsersPage() {
               testId="users-role-filter"
             />
           </div>
+          <div className="filter-field">
+            <SearchableSelect
+              label="Sort"
+              value={sortBy}
+              options={sortOptions}
+              placeholder="Sort users"
+              onChange={setSortBy}
+              testId="users-sort"
+            />
+          </div>
+          <div className="filter-field">
+            <label>Page Size</label>
+            <select
+              value={pageSize}
+              onChange={(event) => setPageSize(Number(event.target.value))}
+              data-testid="users-page-size"
+            >
+              <option value={10}>10</option>
+              <option value={20}>20</option>
+              <option value={50}>50</option>
+            </select>
+          </div>
         </div>
         <div className="table">
-          {visibleUsers.map((user) => (
+          {users.map((user) => (
             <div
               key={user.id}
               className={`row ${
@@ -264,15 +334,42 @@ export default function UsersPage() {
               </div>
             </div>
           ))}
-          {visibleUsers.length === 0 && (
+          {users.length === 0 && (
             <div className="row">
               <div>
-                <strong>No users match the active search and role filters.</strong>
+                <strong>
+                  {loading ? "Loading users page..." : "No users match the active search and role filters."}
+                </strong>
               </div>
               <div />
               <div />
             </div>
           )}
+        </div>
+        <div className="table-footer">
+          <div className="meta-label">
+            Page {page} · Showing {users.length} record{users.length === 1 ? "" : "s"}
+          </div>
+          <div className="row-actions">
+            <button
+              type="button"
+              className="ghost small"
+              onClick={() => setPage((current) => Math.max(1, current - 1))}
+              disabled={page === 1 || loading}
+              data-testid="users-prev-page"
+            >
+              Previous
+            </button>
+            <button
+              type="button"
+              className="ghost small"
+              onClick={() => setPage((current) => current + 1)}
+              disabled={!hasNextPage || loading}
+              data-testid="users-next-page"
+            >
+              Next
+            </button>
+          </div>
         </div>
       </section>
 

@@ -86,6 +86,26 @@ async function requestAllPages<T>(
   return items;
 }
 
+function appendQueryValue(query: URLSearchParams, key: string, value: string | number | undefined) {
+  if (value === undefined) return;
+  const normalized = String(value).trim();
+  if (!normalized) return;
+  query.append(key, normalized);
+}
+
+function appendQueryValues(
+  query: URLSearchParams,
+  key: string,
+  value: Array<string | number> | string | number | undefined
+) {
+  if (value === undefined) return;
+  if (Array.isArray(value)) {
+    for (const item of value) appendQueryValue(query, key, item);
+    return;
+  }
+  appendQueryValue(query, key, value);
+}
+
 async function upload<T>(path: string, file: File): Promise<T> {
   const token = getStoredToken();
   const apiBase = getApiBase();
@@ -190,6 +210,34 @@ export type FineSummary = {
   is_settled: boolean;
 };
 
+type PageQuery = {
+  skip?: number;
+  limit?: number;
+};
+
+export async function queryBooks(params?: PageQuery & {
+  q?: string;
+  author?: string[];
+  subject?: string[];
+  availability?: string[];
+  published_year?: number;
+  sort_by?: string;
+  sort_order?: "asc" | "desc";
+}) {
+  const query = new URLSearchParams();
+  appendQueryValue(query, "q", params?.q);
+  appendQueryValues(query, "author", params?.author);
+  appendQueryValues(query, "subject", params?.subject);
+  appendQueryValues(query, "availability", params?.availability);
+  appendQueryValue(query, "published_year", params?.published_year);
+  appendQueryValue(query, "sort_by", params?.sort_by);
+  appendQueryValue(query, "sort_order", params?.sort_order);
+  appendQueryValue(query, "skip", params?.skip);
+  appendQueryValue(query, "limit", params?.limit);
+  const suffix = query.toString() ? `?${query.toString()}` : "";
+  return request<any[]>(`/books${suffix}`, { method: "GET" });
+}
+
 export async function getBooks(q?: string) {
   const query = new URLSearchParams();
   if (q?.trim()) query.set("q", q.trim());
@@ -222,6 +270,23 @@ export async function getUsers(q?: string) {
   return requestAllPages<any>("/users", query, { method: "GET", pageSize: 200 });
 }
 
+export async function queryUsers(params?: PageQuery & {
+  q?: string;
+  role?: string[];
+  sort_by?: string;
+  sort_order?: "asc" | "desc";
+}) {
+  const query = new URLSearchParams();
+  appendQueryValue(query, "q", params?.q);
+  appendQueryValues(query, "role", params?.role);
+  appendQueryValue(query, "sort_by", params?.sort_by);
+  appendQueryValue(query, "sort_order", params?.sort_order);
+  appendQueryValue(query, "skip", params?.skip);
+  appendQueryValue(query, "limit", params?.limit);
+  const suffix = query.toString() ? `?${query.toString()}` : "";
+  return request<any[]>(`/users${suffix}`, { method: "GET" });
+}
+
 export async function createUser(payload: any) {
   return request("/users", {
     method: "POST",
@@ -244,6 +309,29 @@ export async function deleteUser(userId: number) {
 
 export async function getLoans() {
   return requestAllPages<LoanItem>("/loans", undefined, { method: "GET", pageSize: 200 });
+}
+
+export async function queryLoans(params?: PageQuery & {
+  q?: string;
+  active?: boolean;
+  overdue_only?: boolean;
+  user_id?: number;
+  book_id?: number;
+  sort_by?: string;
+  sort_order?: "asc" | "desc";
+}) {
+  const query = new URLSearchParams();
+  appendQueryValue(query, "q", params?.q);
+  if (typeof params?.active === "boolean") query.set("active", String(params.active));
+  if (typeof params?.overdue_only === "boolean") query.set("overdue_only", String(params.overdue_only));
+  appendQueryValue(query, "user_id", params?.user_id);
+  appendQueryValue(query, "book_id", params?.book_id);
+  appendQueryValue(query, "sort_by", params?.sort_by);
+  appendQueryValue(query, "sort_order", params?.sort_order);
+  appendQueryValue(query, "skip", params?.skip);
+  appendQueryValue(query, "limit", params?.limit);
+  const suffix = query.toString() ? `?${query.toString()}` : "";
+  return request<LoanItem[]>(`/loans${suffix}`, { method: "GET" });
 }
 
 export async function borrowBook(payload: any) {
@@ -315,15 +403,15 @@ export async function updatePolicy(payload: {
 
 export async function getAuditLogs(params?: {
   q?: string;
-  method?: string;
-  entity?: string;
+  method?: string[];
+  entity?: string[];
   status_code?: number;
   limit?: number;
 }) {
   const query = new URLSearchParams();
   if (params?.q?.trim()) query.set("q", params.q.trim());
-  if (params?.method?.trim()) query.set("method", params.method.trim());
-  if (params?.entity?.trim()) query.set("entity", params.entity.trim());
+  appendQueryValues(query, "method", params?.method);
+  appendQueryValues(query, "entity", params?.entity);
   if (typeof params?.status_code === "number") query.set("status_code", String(params.status_code));
   const maxItems = typeof params?.limit === "number" ? params.limit : undefined;
   return requestAllPages<AuditLog>("/audit/logs", query, {
@@ -331,6 +419,27 @@ export async function getAuditLogs(params?: {
     pageSize: 200,
     maxItems,
   });
+}
+
+export async function queryAuditLogs(params?: PageQuery & {
+  q?: string;
+  method?: string[];
+  entity?: string[];
+  status_code?: number;
+  sort_by?: string;
+  sort_order?: "asc" | "desc";
+}) {
+  const query = new URLSearchParams();
+  appendQueryValue(query, "q", params?.q);
+  appendQueryValues(query, "method", params?.method);
+  appendQueryValues(query, "entity", params?.entity);
+  appendQueryValue(query, "status_code", params?.status_code);
+  appendQueryValue(query, "sort_by", params?.sort_by);
+  appendQueryValue(query, "sort_order", params?.sort_order);
+  appendQueryValue(query, "skip", params?.skip);
+  appendQueryValue(query, "limit", params?.limit);
+  const suffix = query.toString() ? `?${query.toString()}` : "";
+  return request<AuditLog[]>(`/audit/logs${suffix}`, { method: "GET" });
 }
 
 export async function login(payload: { email: string; password: string }) {

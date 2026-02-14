@@ -1,4 +1,4 @@
-from fastapi import APIRouter, Depends, HTTPException, Query, status
+from fastapi import APIRouter, Depends, HTTPException, Query, Request, status
 from sqlalchemy.exc import IntegrityError, SQLAlchemyError
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -13,19 +13,40 @@ from ..models import User
 from ..schemas.fine_payments import FinePaymentOut
 from ..schemas.loans import BorrowedBookOut, UserLoanOut
 from ..schemas.users import UserCreate, UserOut, UserUpdate
+from ..utils.api_cache import api_cache, build_user_cache_key
 
 router = APIRouter(prefix="/users", tags=["users"])
 
 
 @router.get("", response_model=list[UserOut])
 async def list_users(
+    request: Request,
     q: str | None = Query(default=None, description="Search by name/email/phone"),
+    role: list[str] = Query(default=[]),
+    sort_by: str = Query(default="name"),
+    sort_order: str = Query(default="asc", pattern="^(asc|desc)$"),
     skip: int = Query(default=0, ge=0),
     limit: int = Query(default=100, ge=1, le=500),
     db: AsyncSession = Depends(get_db),
     _: object = Depends(require_roles("staff", "admin")),
 ):
-    return await crud_users.list(db, q=q, skip=skip, limit=limit)
+    cache_key = build_user_cache_key(request, scope="users:list")
+    cached = await api_cache.get_json(cache_key)
+    if cached is not None:
+        return cached
+
+    rows = await crud_users.list(
+        db,
+        q=q,
+        role=role,
+        sort_by=sort_by,
+        sort_order=sort_order,
+        skip=skip,
+        limit=limit,
+    )
+    payload = [UserOut.model_validate(row).model_dump(mode="json") for row in rows]
+    await api_cache.set_json(cache_key, payload)
+    return payload
 
 
 @router.get("/me", response_model=UserOut)

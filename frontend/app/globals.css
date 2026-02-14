@@ -404,6 +404,14 @@ p.lede {
   gap: 10px;
 }
 
+.table-footer {
+  margin-top: 10px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+}
+
 .row {
   display: grid;
   grid-template-columns: minmax(0, 1.5fr) minmax(0, 0.9fr) minmax(0, 0.9fr);

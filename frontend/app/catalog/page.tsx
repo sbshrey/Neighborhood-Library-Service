@@ -4,7 +4,7 @@ import { useEffect, useMemo, useState } from "react";
 import ActionModal from "../../components/ActionModal";
 import SearchableSelect from "../../components/SearchableSelect";
 import { useToast } from "../../components/ToastProvider";
-import { createBook, deleteBook, getBooks, updateBook } from "../../lib/api";
+import { createBook, deleteBook, getBooks, queryBooks, updateBook } from "../../lib/api";
 
 const initialBookForm = {
   title: "",
@@ -21,18 +21,54 @@ type BookModalMode = "create" | "edit" | null;
 export default function CatalogPage() {
   const { showToast } = useToast();
   const [books, setBooks] = useState<any[]>([]);
+  const [allBooks, setAllBooks] = useState<any[]>([]);
   const [search, setSearch] = useState("");
   const [authorFilter, setAuthorFilter] = useState<string[]>([]);
   const [subjectFilter, setSubjectFilter] = useState<string[]>([]);
   const [availabilityFilter, setAvailabilityFilter] = useState<string[]>([]);
+  const [sortBy, setSortBy] = useState("title_asc");
+  const [page, setPage] = useState(1);
+  const [pageSize, setPageSize] = useState(10);
+  const [hasNextPage, setHasNextPage] = useState(false);
+  const [loading, setLoading] = useState(false);
 
   const [modalMode, setModalMode] = useState<BookModalMode>(null);
   const [activeBookId, setActiveBookId] = useState<number | null>(null);
   const [bookForm, setBookForm] = useState(initialBookForm);
 
-  const refresh = async (showSuccess = false) => {
+  const sortConfigMap: Record<string, { sort_by: string; sort_order: "asc" | "desc" }> = {
+    title_asc: { sort_by: "title", sort_order: "asc" },
+    title_desc: { sort_by: "title", sort_order: "desc" },
+    author_asc: { sort_by: "author", sort_order: "asc" },
+    author_desc: { sort_by: "author", sort_order: "desc" },
+    subject_asc: { sort_by: "subject", sort_order: "asc" },
+    subject_desc: { sort_by: "subject", sort_order: "desc" },
+    available_desc: { sort_by: "available", sort_order: "desc" },
+    available_asc: { sort_by: "available", sort_order: "asc" },
+    id_desc: { sort_by: "id", sort_order: "desc" },
+    id_asc: { sort_by: "id", sort_order: "asc" },
+  };
+
+  const loadStats = async () => {
+    setAllBooks(await getBooks());
+  };
+
+  const loadPage = async (showSuccess = false) => {
+    setLoading(true);
     try {
-      setBooks(await getBooks());
+      const sortConfig = sortConfigMap[sortBy] || sortConfigMap.title_asc;
+      const rows = await queryBooks({
+        q: search.trim() || undefined,
+        author: authorFilter,
+        subject: subjectFilter,
+        availability: availabilityFilter,
+        sort_by: sortConfig.sort_by,
+        sort_order: sortConfig.sort_order,
+        skip: (page - 1) * pageSize,
+        limit: pageSize,
+      });
+      setBooks(rows);
+      setHasNextPage(rows.length === pageSize);
       if (showSuccess) {
         showToast({ type: "success", title: "Catalog refreshed" });
       }
@@ -42,6 +78,16 @@ export default function CatalogPage() {
         title: "Unable to load books",
         description: err.message || "Request failed",
       });
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const refresh = async (showSuccess = false) => {
+    try {
+      await Promise.all([loadPage(showSuccess), loadStats()]);
+    } catch {
+      // Errors are already handled in child loaders.
     }
   };
 
@@ -49,27 +95,35 @@ export default function CatalogPage() {
     refresh();
   }, []);
 
+  useEffect(() => {
+    loadPage();
+  }, [search, authorFilter, subjectFilter, availabilityFilter, sortBy, page, pageSize]);
+
+  useEffect(() => {
+    setPage(1);
+  }, [search, authorFilter, subjectFilter, availabilityFilter, sortBy, pageSize]);
+
   const stats = useMemo(() => {
-    const totalTitles = books.length;
-    const totalCopies = books.reduce((sum, book) => sum + book.copies_total, 0);
-    const availableCopies = books.reduce((sum, book) => sum + book.copies_available, 0);
-    const lowStock = books.filter((book) => book.copies_available <= 1).length;
+    const totalTitles = allBooks.length;
+    const totalCopies = allBooks.reduce((sum, book) => sum + book.copies_total, 0);
+    const availableCopies = allBooks.reduce((sum, book) => sum + book.copies_available, 0);
+    const lowStock = allBooks.filter((book) => book.copies_available <= 1).length;
     return { totalTitles, totalCopies, availableCopies, lowStock };
-  }, [books]);
+  }, [allBooks]);
 
   const authorOptions = useMemo(() => {
     const values = Array.from(
-      new Set(books.map((book) => (book.author || "").trim()).filter(Boolean))
+      new Set(allBooks.map((book) => (book.author || "").trim()).filter(Boolean))
     );
     return values.sort((a, b) => a.localeCompare(b));
-  }, [books]);
+  }, [allBooks]);
 
   const subjectOptions = useMemo(() => {
     const values = Array.from(
-      new Set(books.map((book) => (book.subject || "").trim()).filter(Boolean))
+      new Set(allBooks.map((book) => (book.subject || "").trim()).filter(Boolean))
     );
     return values.sort((a, b) => a.localeCompare(b));
-  }, [books]);
+  }, [allBooks]);
 
   const authorFilterOptions = useMemo(
     () =>
@@ -96,23 +150,18 @@ export default function CatalogPage() {
     { value: "unavailable", label: "Unavailable only" },
   ];
 
-  const visibleBooks = useMemo(() => {
-    const normalizedSearch = search.trim().toLowerCase();
-    return books.filter((book) => {
-      if (authorFilter.length > 0 && !authorFilter.includes(book.author)) return false;
-      if (subjectFilter.length > 0 && !subjectFilter.includes(book.subject)) return false;
-      if (availabilityFilter.length > 0) {
-        const isAvailable = book.copies_available > 0;
-        if (isAvailable && !availabilityFilter.includes("available")) return false;
-        if (!isAvailable && !availabilityFilter.includes("unavailable")) return false;
-      }
-      if (!normalizedSearch) return true;
-      const haystack =
-        `${book.id} ${book.title} ${book.author} ${book.subject || ""} ` +
-        `${book.rack_number || ""} ${book.isbn || ""}`.toLowerCase();
-      return haystack.includes(normalizedSearch);
-    });
-  }, [books, authorFilter, subjectFilter, availabilityFilter, search]);
+  const sortOptions = [
+    { value: "title_asc", label: "Title A-Z" },
+    { value: "title_desc", label: "Title Z-A" },
+    { value: "author_asc", label: "Author A-Z" },
+    { value: "author_desc", label: "Author Z-A" },
+    { value: "subject_asc", label: "Category A-Z" },
+    { value: "subject_desc", label: "Category Z-A" },
+    { value: "available_desc", label: "Availability High-Low" },
+    { value: "available_asc", label: "Availability Low-High" },
+    { value: "id_desc", label: "Book ID Newest" },
+    { value: "id_asc", label: "Book ID Oldest" },
+  ];
 
   const closeModal = () => setModalMode(null);
 
@@ -299,9 +348,31 @@ export default function CatalogPage() {
               testId="catalog-subject-filter"
             />
           </div>
+          <div className="filter-field">
+            <SearchableSelect
+              label="Sort"
+              value={sortBy}
+              options={sortOptions}
+              placeholder="Sort catalog"
+              onChange={setSortBy}
+              testId="catalog-sort"
+            />
+          </div>
+          <div className="filter-field">
+            <label>Page Size</label>
+            <select
+              value={pageSize}
+              onChange={(event) => setPageSize(Number(event.target.value))}
+              data-testid="catalog-page-size"
+            >
+              <option value={10}>10</option>
+              <option value={20}>20</option>
+              <option value={50}>50</option>
+            </select>
+          </div>
         </div>
         <div className="table">
-          {visibleBooks.map((book) => (
+          {books.map((book) => (
             <div
               key={book.id}
               className={`row ${
@@ -358,15 +429,44 @@ export default function CatalogPage() {
               </div>
             </div>
           ))}
-          {visibleBooks.length === 0 && (
+          {books.length === 0 && (
             <div className="row">
               <div>
-                <strong>No books match the active filters and search input.</strong>
+                <strong>
+                  {loading
+                    ? "Loading catalog page..."
+                    : "No books match the active filters and search input."}
+                </strong>
               </div>
               <div />
               <div />
             </div>
           )}
+        </div>
+        <div className="table-footer">
+          <div className="meta-label">
+            Page {page} · Showing {books.length} record{books.length === 1 ? "" : "s"}
+          </div>
+          <div className="row-actions">
+            <button
+              type="button"
+              className="ghost small"
+              onClick={() => setPage((current) => Math.max(1, current - 1))}
+              disabled={page === 1 || loading}
+              data-testid="catalog-prev-page"
+            >
+              Previous
+            </button>
+            <button
+              type="button"
+              className="ghost small"
+              onClick={() => setPage((current) => current + 1)}
+              disabled={!hasNextPage || loading}
+              data-testid="catalog-next-page"
+            >
+              Next
+            </button>
+          </div>
         </div>
       </section>
 

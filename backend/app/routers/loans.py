@@ -1,4 +1,4 @@
-from fastapi import APIRouter, Depends, HTTPException, Query, status
+from fastapi import APIRouter, Depends, HTTPException, Query, Request, status
 from sqlalchemy.exc import SQLAlchemyError
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -8,6 +8,7 @@ from ..db import get_db
 from ..deps import require_roles
 from ..schemas.fine_payments import FinePaymentCreate, FinePaymentOut, FineSummaryOut
 from ..schemas.loans import LoanCreate, LoanOut, LoanUpdate
+from ..utils.api_cache import api_cache, build_user_cache_key
 
 router = APIRouter(prefix="/loans", tags=["loans"])
 
@@ -53,24 +54,39 @@ async def return_book(
 
 @router.get("", response_model=list[LoanOut])
 async def list_loans(
+    request: Request,
+    q: str | None = Query(default=None),
     active: bool | None = Query(default=None),
     overdue_only: bool = Query(default=False),
     user_id: int | None = Query(default=None),
     book_id: int | None = Query(default=None),
+    sort_by: str = Query(default="borrowed_at"),
+    sort_order: str = Query(default="desc", pattern="^(asc|desc)$"),
     skip: int = Query(default=0, ge=0),
     limit: int = Query(default=100, ge=1, le=500),
     db: AsyncSession = Depends(get_db),
     _: object = Depends(require_roles("staff", "admin")),
 ):
-    return await crud_loans.list(
+    cache_key = build_user_cache_key(request, scope="loans:list")
+    cached = await api_cache.get_json(cache_key)
+    if cached is not None:
+        return cached
+
+    rows = await crud_loans.list(
         db,
+        q=q,
         active=active,
         user_id=user_id,
         book_id=book_id,
         overdue_only=overdue_only,
+        sort_by=sort_by,
+        sort_order=sort_order,
         skip=skip,
         limit=limit,
     )
+    payload = [LoanOut.model_validate(row).model_dump(mode="json") for row in rows]
+    await api_cache.set_json(cache_key, payload)
+    return payload
 
 
 @router.get("/{loan_id}/fine-summary", response_model=FineSummaryOut)
