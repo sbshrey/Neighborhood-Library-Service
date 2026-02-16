@@ -1,1 +1,11 @@
-__all__ = ["auth", "books", "users", "loans", "seed", "imports", "policies", "audit"]
+__all__ = [
+    "auth",
+    "books",
+    "users",
+    "loans",
+    "fine_payments",
+    "seed",
+    "imports",
+    "policies",
+    "audit",
+]

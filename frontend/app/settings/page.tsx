@@ -15,14 +15,12 @@ import {
 } from "../../lib/api";
 
 const importFilterOptions = [
-  { value: "all", label: "All import types" },
   { value: "books", label: "Books import" },
   { value: "users", label: "Users import" },
   { value: "loans", label: "Loans import" },
 ];
 
 const moduleFilterOptions = [
-  { value: "all", label: "All admin modules" },
   { value: "catalog", label: "Catalog module" },
   { value: "users", label: "Users module" },
   { value: "roles", label: "Roles module" },
@@ -43,8 +41,8 @@ export default function SettingsPage() {
   const [booksFile, setBooksFile] = useState<File | null>(null);
   const [usersFile, setUsersFile] = useState<File | null>(null);
   const [loansFile, setLoansFile] = useState<File | null>(null);
-  const [importFilter, setImportFilter] = useState("all");
-  const [moduleFilter, setModuleFilter] = useState("all");
+  const [importFilter, setImportFilter] = useState<string[]>([]);
+  const [moduleFilter, setModuleFilter] = useState<string[]>([]);
   const [loadingAction, setLoadingAction] = useState<string | null>(null);
   const [draggingEntity, setDraggingEntity] = useState<ImportEntity | null>(null);
   const fileInputRefs = useRef<Record<ImportEntity, HTMLInputElement | null>>({
@@ -114,8 +112,8 @@ export default function SettingsPage() {
   const visibleImportRows = useMemo(
     () =>
       importRows.filter((row) => {
-        if (importFilter === "all") return true;
-        return row.entity === importFilter;
+        if (importFilter.length === 0) return true;
+        return importFilter.includes(row.entity);
       }),
     [importRows, importFilter]
   );
@@ -123,8 +121,8 @@ export default function SettingsPage() {
   const visibleModules = useMemo(
     () =>
       modules.filter((module) => {
-        if (moduleFilter === "all") return true;
-        return module.id === moduleFilter;
+        if (moduleFilter.length === 0) return true;
+        return moduleFilter.includes(module.id);
       }),
     [moduleFilter]
   );
@@ -357,8 +355,9 @@ export default function SettingsPage() {
               label="Import filter"
               value={importFilter}
               options={importFilterOptions}
-              placeholder="Filter import cards"
+              placeholder="All import types"
               onChange={setImportFilter}
+              multiple
               testId="settings-import-filter"
             />
           </div>
@@ -428,8 +427,9 @@ export default function SettingsPage() {
               label="Module filter"
               value={moduleFilter}
               options={moduleFilterOptions}
-              placeholder="Filter module cards"
+              placeholder="All admin modules"
               onChange={setModuleFilter}
+              multiple
               testId="settings-module-filter"
             />
           </div>

@@ -33,6 +33,16 @@ class FinePaymentOut(BaseModel):
     model_config = ConfigDict(from_attributes=True)
 
 
+class FinePaymentLedgerOut(FinePaymentOut):
+    book_id: int
+    book_title: str
+    book_author: str
+    book_isbn: str | None
+    user_name: str
+    user_email: str | None
+    user_phone: str | None
+
+
 class FineSummaryOut(BaseModel):
     loan_id: int
     estimated_fine: float

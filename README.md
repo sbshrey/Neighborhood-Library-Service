@@ -16,11 +16,30 @@ A full‑stack take‑home implementation for managing books, users, and lending
 - **Backend:** Python, FastAPI, SQLAlchemy, PostgreSQL, **uv** (package/runtime manager)
 - **Frontend:** Next.js (React)
 
+## Prerequisites
+- Node.js `>=20.19` (or `>=22.12`) and npm
+- Python `>=3.10,<3.12`
+- PostgreSQL on `localhost:5432`
+- `uv` package manager
+
 ## Repository Layout
 - `backend/` Python API server
 - `frontend/` Next.js minimal UI
 
 ---
+
+## Fast Setup (Fresh Clone)
+From repo root:
+```bash
+make install
+make migrate
+make up
+```
+
+For a fully clean DB reset:
+```bash
+PGPASSWORD=<postgres_password> make reset-db CONFIRM=YES
+```
 
 ## Quick Start Script
 From repo root:
@@ -56,6 +75,8 @@ make up-e2e-visual
 make backend
 make up-fast
 make test-backend
+make test-frontend-unit
+make test-frontend-coverage
 make test-e2e
 make precommit
 make clean
@@ -99,11 +120,18 @@ uv run alembic -c alembic.ini upgrade head
 
 Recreate the database from scratch:
 ```bash
-dropdb -h localhost -U postgres neighborhood_library
-createdb -h localhost -U postgres neighborhood_library
+PGPASSWORD=<postgres_password> dropdb -h localhost -U postgres neighborhood_library
+PGPASSWORD=<postgres_password> createdb -h localhost -U postgres neighborhood_library
 cd backend
 uv run alembic -c alembic.ini upgrade head
 ```
+
+or with Make:
+```bash
+PGPASSWORD=<postgres_password> make reset-db CONFIRM=YES
+```
+
+If your local Postgres trusts local connections, `PGPASSWORD` may not be required.
 
 ### 5) Run the API
 ```bash
@@ -238,6 +266,16 @@ Visual demo mode (headed + video + screenshots + trace):
 npm run test:e2e:visual
 ```
 
+### Frontend Unit Tests + Coverage (Vitest)
+```bash
+cd frontend
+npm run test:unit
+npm run test:coverage
+```
+
+Coverage output is generated at:
+- `frontend/coverage/index.html`
+
 ---
 
 ## Notes
@@ -247,6 +285,10 @@ npm run test:e2e:visual
   - `AUTH_LOGIN_RATE_LIMIT_PER_WINDOW`
   - `AUTH_LOGIN_RATE_LIMIT_WINDOW_SECONDS`
 - Audit logs are emitted for mutating API calls and can be toggled with `AUDIT_LOG_ENABLED`.
+- API response caching currently uses in-memory process-local storage (good for local/demo runs).
+  For multi-instance production deployments, use a shared cache like Redis to avoid stale/uneven cache behavior across nodes.
+- Frontend currently uses explicit fetch hooks/state instead of TanStack Query to keep take-home complexity controlled.
+  If this were extended to production scale, migrating API data flows to TanStack Query would improve cache invalidation, refetch, and loading/error consistency.
 - Circulation policy knobs:
   - `CIRCULATION_MAX_ACTIVE_LOANS_PER_USER`
   - `CIRCULATION_MAX_LOAN_DAYS`

@@ -7,6 +7,7 @@ import { AuthUser } from "../lib/auth";
 
 const staffLinks = [
   { href: "/", label: "Borrowings" },
+  { href: "/fines", label: "Fines" },
 ];
 
 const memberLinks = [
@@ -15,6 +16,7 @@ const memberLinks = [
 
 const adminLinks = [
   { href: "/", label: "Borrowings" },
+  { href: "/fines", label: "Fines" },
   { href: "/settings", label: "Admin Settings" },
   { href: "/catalog", label: "Catalog" },
   { href: "/users", label: "Users" },

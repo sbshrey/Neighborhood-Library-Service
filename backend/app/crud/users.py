@@ -48,12 +48,33 @@ class CRUDUser(CRUDBase[User, UserCreate, UserUpdate]):
             ),
         )
 
-    async def list(self, db: AsyncSession, *, q: str | None = None) -> list[User]:
+    async def list(
+        self,
+        db: AsyncSession,
+        *,
+        q: str | None = None,
+        role: list[str] | None = None,
+        sort_by: str = "name",
+        sort_order: str = "asc",
+        skip: int = 0,
+        limit: int = 100,
+    ) -> list[User]:
         stmt = select(User)
         if q:
             like = f"%{q}%"
             stmt = stmt.where(or_(User.name.ilike(like), User.email.ilike(like), User.phone.ilike(like)))
-        stmt = stmt.order_by(User.name.asc())
+        normalized_roles = [value.strip().lower() for value in (role or []) if value.strip()]
+        if normalized_roles:
+            stmt = stmt.where(func.lower(User.role).in_(normalized_roles))
+
+        sort_columns = {
+            "name": User.name,
+            "role": User.role,
+            "id": User.id,
+        }
+        sort_column = sort_columns.get(sort_by, User.name)
+        order = sort_column.desc() if sort_order.lower() == "desc" else sort_column.asc()
+        stmt = stmt.order_by(order, User.id.asc()).offset(skip).limit(limit)
         return await self.scalars_all(db, stmt)
 
     async def list_loans_with_books(self, db: AsyncSession, *, user_id: int) -> list[tuple[Loan, Book, float]]:

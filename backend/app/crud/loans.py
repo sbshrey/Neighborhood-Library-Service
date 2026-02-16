@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from datetime import datetime, timedelta, timezone
 
-from sqlalchemy import func, select, update
+from sqlalchemy import String, cast, func, or_, select, update
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from ..models import Book, LibraryPolicy, Loan, User
@@ -134,9 +134,30 @@ class CRUDLoan(SQLQueryRunner):
         user_id: int | None,
         book_id: int | None,
         overdue_only: bool,
+        q: str | None = None,
+        sort_by: str = "borrowed_at",
+        sort_order: str = "desc",
+        skip: int = 0,
+        limit: int = 100,
     ) -> list[Loan]:
         await self._get_policy(db)
         stmt = select(Loan)
+        if q:
+            like = f"%{q}%"
+            stmt = stmt.join(Book, Book.id == Loan.book_id).join(User, User.id == Loan.user_id)
+            stmt = stmt.where(
+                or_(
+                    cast(Loan.id, String).ilike(like),
+                    cast(Loan.book_id, String).ilike(like),
+                    cast(Loan.user_id, String).ilike(like),
+                    Book.title.ilike(like),
+                    Book.author.ilike(like),
+                    Book.isbn.ilike(like),
+                    User.name.ilike(like),
+                    User.email.ilike(like),
+                    User.phone.ilike(like),
+                )
+            )
         if active is True:
             stmt = stmt.where(Loan.returned_at.is_(None))
         if active is False:
@@ -147,7 +168,15 @@ class CRUDLoan(SQLQueryRunner):
             stmt = stmt.where(Loan.book_id == book_id)
         if overdue_only:
             stmt = stmt.where(Loan.returned_at.is_(None), Loan.due_at < datetime.now(timezone.utc))
-        stmt = stmt.order_by(Loan.borrowed_at.desc())
+        sort_columns = {
+            "borrowed_at": Loan.borrowed_at,
+            "due_at": Loan.due_at,
+            "returned_at": Loan.returned_at,
+            "id": Loan.id,
+        }
+        sort_column = sort_columns.get(sort_by, Loan.borrowed_at)
+        order = sort_column.desc() if sort_order.lower() == "desc" else sort_column.asc()
+        stmt = stmt.order_by(order, Loan.id.desc()).offset(skip).limit(limit)
         loans = await self.scalars_all(db, stmt)
         loan_ids = [loan.id for loan in loans]
         paid_map = await crud_fine_payments.paid_amounts_by_loans(db, loan_ids)

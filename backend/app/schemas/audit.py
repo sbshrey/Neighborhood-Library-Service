@@ -11,6 +11,7 @@ class AuditLogOut(BaseModel):
     path: str
     entity: str | None
     entity_id: int | None
+    change_diff: dict | None = None
     status_code: int
     duration_ms: float
     created_at: datetime

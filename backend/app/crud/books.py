@@ -54,9 +54,15 @@ class CRUDBook(CRUDBase[Book, BookCreate, BookUpdate]):
         db: AsyncSession,
         *,
         q: str | None,
-        subject: str | None,
+        author: list[str] | None = None,
+        subject: list[str] | None = None,
+        availability: list[str] | None = None,
         published_year: int | None,
         available_only: bool,
+        sort_by: str = "title",
+        sort_order: str = "asc",
+        skip: int = 0,
+        limit: int = 100,
     ) -> list[Book]:
         stmt = select(Book)
         if q:
@@ -70,13 +76,31 @@ class CRUDBook(CRUDBase[Book, BookCreate, BookUpdate]):
                     Book.rack_number.ilike(like),
                 )
             )
-        if subject:
-            stmt = stmt.where(Book.subject.ilike(f"%{subject}%"))
+        normalized_authors = [value.strip().lower() for value in (author or []) if value.strip()]
+        if normalized_authors:
+            stmt = stmt.where(func.lower(Book.author).in_(normalized_authors))
+        normalized_subjects = [value.strip() for value in (subject or []) if value.strip()]
+        if normalized_subjects:
+            stmt = stmt.where(or_(*[Book.subject.ilike(f"%{value}%") for value in normalized_subjects]))
         if published_year is not None:
             stmt = stmt.where(Book.published_year == published_year)
-        if available_only:
+        normalized_availability = {value.strip().lower() for value in (availability or []) if value.strip()}
+        if available_only or normalized_availability == {"available"}:
             stmt = stmt.where(Book.copies_available > 0)
-        stmt = stmt.order_by(Book.title.asc())
+        elif normalized_availability == {"unavailable"}:
+            stmt = stmt.where(Book.copies_available <= 0)
+
+        sort_columns = {
+            "title": Book.title,
+            "author": Book.author,
+            "subject": Book.subject,
+            "available": Book.copies_available,
+            "id": Book.id,
+        }
+        sort_column = sort_columns.get(sort_by, Book.title)
+        order = sort_column.desc() if sort_order.lower() == "desc" else sort_column.asc()
+
+        stmt = stmt.order_by(order, Book.id.asc()).offset(skip).limit(limit)
         return await self.scalars_all(db, stmt)
 
     async def create(self, db: AsyncSession, *, obj_in: BookCreate) -> Book:

@@ -1,10 +1,10 @@
 from datetime import datetime, timezone
 
-from sqlalchemy import func, select
+from sqlalchemy import String, asc, cast, desc, func, or_, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from ..config import settings
-from ..models import FinePayment, Loan
+from ..models import Book, FinePayment, Loan, User
 from ..schemas.fine_payments import FinePaymentCreate, FineSummaryOut
 from ..utils.audit_fields import stamp_created_updated_by
 from .base import SQLQueryRunner
@@ -92,6 +92,95 @@ class CRUDFinePayments(SQLQueryRunner):
             .where(FinePayment.loan_id == loan_id)
             .order_by(FinePayment.collected_at.desc(), FinePayment.id.desc()),
         )
+
+    async def list_ledger(
+        self,
+        db: AsyncSession,
+        *,
+        q: str | None = None,
+        payment_mode: list[str] | None = None,
+        user_id: int | None = None,
+        loan_id: int | None = None,
+        collected_from: datetime | None = None,
+        collected_to: datetime | None = None,
+        sort_by: str = "collected_at",
+        sort_order: str = "desc",
+        skip: int = 0,
+        limit: int = 100,
+    ) -> list[dict]:
+        statement = (
+            select(
+                FinePayment.id,
+                FinePayment.loan_id,
+                FinePayment.user_id,
+                FinePayment.amount,
+                FinePayment.payment_mode,
+                FinePayment.reference,
+                FinePayment.notes,
+                FinePayment.collected_at,
+                FinePayment.created_at,
+                Book.id.label("book_id"),
+                Book.title.label("book_title"),
+                Book.author.label("book_author"),
+                Book.isbn.label("book_isbn"),
+                User.name.label("user_name"),
+                User.email.label("user_email"),
+                User.phone.label("user_phone"),
+            )
+            .join(Loan, Loan.id == FinePayment.loan_id)
+            .join(Book, Book.id == Loan.book_id)
+            .join(User, User.id == FinePayment.user_id)
+        )
+
+        if q and q.strip():
+            term = f"%{q.strip()}%"
+            statement = statement.where(
+                or_(
+                    cast(FinePayment.id, String).ilike(term),
+                    cast(FinePayment.loan_id, String).ilike(term),
+                    cast(FinePayment.user_id, String).ilike(term),
+                    cast(Book.id, String).ilike(term),
+                    Book.title.ilike(term),
+                    Book.author.ilike(term),
+                    func.coalesce(Book.isbn, "").ilike(term),
+                    User.name.ilike(term),
+                    func.coalesce(User.email, "").ilike(term),
+                    func.coalesce(User.phone, "").ilike(term),
+                    FinePayment.payment_mode.ilike(term),
+                    func.coalesce(FinePayment.reference, "").ilike(term),
+                )
+            )
+
+        if payment_mode:
+            normalized = [value.strip().lower() for value in payment_mode if value.strip()]
+            if normalized:
+                statement = statement.where(FinePayment.payment_mode.in_(normalized))
+
+        if user_id is not None:
+            statement = statement.where(FinePayment.user_id == user_id)
+        if loan_id is not None:
+            statement = statement.where(FinePayment.loan_id == loan_id)
+        if collected_from is not None:
+            statement = statement.where(FinePayment.collected_at >= collected_from)
+        if collected_to is not None:
+            statement = statement.where(FinePayment.collected_at <= collected_to)
+
+        order_fields = {
+            "collected_at": FinePayment.collected_at,
+            "amount": FinePayment.amount,
+            "loan_id": FinePayment.loan_id,
+            "user_name": User.name,
+            "book_title": Book.title,
+            "payment_mode": FinePayment.payment_mode,
+            "id": FinePayment.id,
+        }
+        order_column = order_fields.get(sort_by, FinePayment.collected_at)
+        order_func = asc if sort_order.lower() == "asc" else desc
+        statement = statement.order_by(order_func(order_column), desc(FinePayment.id))
+        statement = statement.offset(skip).limit(limit)
+
+        rows = await self.rows_all(db, statement)
+        return [dict(row._mapping) for row in rows]
 
 
 crud_fine_payments = CRUDFinePayments()

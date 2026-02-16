@@ -253,8 +253,8 @@ test.describe('Neighborhood Library Demo Journeys', () => {
 
     await test.step('Create a catalog book from UI', async () => {
       await page.goto('/catalog');
-      const importedBookRow = page.getByTestId('book-row').filter({ hasText: importedBookTitle }).first();
-      await expect(importedBookRow).toBeVisible();
+      await page.getByTestId('book-open-create').click();
+      await expect(page.getByTestId('book-action-modal')).toBeVisible();
       await page.getByTestId('book-title').fill(bookTitle);
       await page.getByTestId('book-author').fill('Eric Evans');
       await page.getByTestId('book-isbn').fill(`978032112${String(Math.floor(Math.random() * 100000)).padStart(5, '0')}`);
@@ -268,8 +268,23 @@ test.describe('Neighborhood Library Demo Journeys', () => {
       await snap('admin-book-created');
     });
 
+    await test.step('Catalog validation shows clear error for 422 payload issues', async () => {
+      await page.goto('/catalog');
+      await page.getByTestId('book-open-create').click();
+      await expect(page.getByTestId('book-action-modal')).toBeVisible();
+      await page.getByTestId('book-title').fill(`Validation Book ${run}`);
+      await page.getByTestId('book-author').fill('Validation Author');
+      await page.getByTestId('book-isbn').fill('1234567890123456789012345678901234567890');
+      await page.getByTestId('book-submit').click();
+      await expect(page.getByTestId('toast-error').last()).toContainText('isbn');
+      await page.getByRole('button', { name: 'Close modal' }).click();
+      await snap('catalog-validation-error-toast');
+    });
+
     await test.step('Create a staff user from UI', async () => {
       await page.goto('/users');
+      await page.getByTestId('user-open-create').click();
+      await expect(page.getByTestId('user-action-modal')).toBeVisible();
       await page.getByTestId('user-name').fill('Demo Staff UI');
       await page.getByTestId('user-email').fill(staffEmail);
       await page.getByTestId('user-phone').fill('9000000001');
@@ -284,9 +299,18 @@ test.describe('Neighborhood Library Demo Journeys', () => {
       await page.goto('/audit');
       await expect(page.getByRole('heading', { name: 'Audit Timeline' })).toBeVisible();
       await page.getByPlaceholder('Path, method, role, status, actor, entity id').fill('/users');
-      await page.getByRole('button', { name: 'Apply Filters' }).click();
+      await page.getByRole('button', { name: 'Refresh' }).click();
       await expect(page.getByText('POST /users').first()).toBeVisible();
       await snap('admin-audit-visible');
+    });
+
+    await test.step('Open fines ledger page from nav and verify table loads', async () => {
+      await page.getByTestId('nav-fines').click();
+      await expect(page).toHaveURL(/\/fines$/);
+      await expect(page.getByRole('heading', { name: 'Fines Ledger' })).toBeVisible();
+      await expect(page.getByRole('heading', { name: 'Collection Register' })).toBeVisible();
+      await expect(page.getByTestId('fines-mode-filter')).toBeVisible();
+      await snap('admin-fines-ledger-visible');
     });
   });
 
@@ -340,6 +364,8 @@ test.describe('Neighborhood Library Demo Journeys', () => {
     });
 
     await test.step('Staff creates member quickly from borrowings desk', async () => {
+      await page.getByTestId('quick-user-open-modal').click();
+      await expect(page.getByTestId('quick-user-action-modal')).toBeVisible();
       await page.getByTestId('quick-user-name').fill(memberName);
       await page.getByTestId('quick-user-email').fill(memberEmail);
       await page.getByTestId('quick-user-phone').fill('9000000003');
@@ -350,6 +376,8 @@ test.describe('Neighborhood Library Demo Journeys', () => {
     });
 
     await test.step('Staff records borrowing and verifies register entry', async () => {
+      await page.getByTestId('borrow-open-modal').click();
+      await expect(page.getByTestId('borrow-action-modal')).toBeVisible();
       await pickFromCombo(page, 'borrow-book-id', 'Midnight Library Demo', bookTitle);
       await pickFromCombo(page, 'borrow-user-id', memberName, memberName);
       await page.getByTestId('borrow-days').fill('10');
@@ -363,10 +391,12 @@ test.describe('Neighborhood Library Demo Journeys', () => {
     });
 
     await test.step('Staff records return and validates final status', async () => {
+      await page.getByTestId('return-open-modal').click();
+      await expect(page.getByTestId('return-action-modal')).toBeVisible();
       await pickFromCombo(page, 'return-loan-id', memberName, memberName);
       await page.getByTestId('return-submit').click();
       await expect(page.getByTestId('toast-success').last()).toContainText('Return recorded');
-      await page.getByTestId('loan-status-filter').selectOption('all');
+      await page.getByTestId('loan-status-option-all').click();
       const returnedRow = page.getByTestId('loan-row').filter({ hasText: memberName }).first();
       await expect(returnedRow).toContainText('Returned');
       await snap('staff-return-recorded');
