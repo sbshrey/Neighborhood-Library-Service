@@ -68,6 +68,8 @@ export default function BorrowingsPage() {
     payment_mode: "upi",
     reference: "",
   });
+  const [borrowLoading, setBorrowLoading] = useState(false);
+  const [returnLoading, setReturnLoading] = useState(false);
   const [fineLoading, setFineLoading] = useState(false);
   const [quickUserForm, setQuickUserForm] = useState<QuickUserForm>(initialQuickUser);
   const [userActionLoading, setUserActionLoading] = useState(false);
@@ -77,6 +79,7 @@ export default function BorrowingsPage() {
   const [registerPageSize, setRegisterPageSize] = useState(10);
   const [registerHasNext, setRegisterHasNext] = useState(false);
   const [registerLoading, setRegisterLoading] = useState(false);
+  const [refreshing, setRefreshing] = useState(false);
   const [activeModal, setActiveModal] = useState<BorrowingActionModal>(null);
 
   const loanSortConfig: Record<string, { sort_by: string; sort_order: "asc" | "desc" }> = {
@@ -136,6 +139,8 @@ export default function BorrowingsPage() {
   };
 
   const refresh = async (showSuccess = false) => {
+    if (refreshing) return;
+    setRefreshing(true);
     try {
       const [booksData, usersData, loansData] = await Promise.all([getBooks(), getUsers(), getLoans()]);
       setBooks(booksData);
@@ -151,6 +156,8 @@ export default function BorrowingsPage() {
         title: "Unable to load borrowings",
         description: err.message || "Request failed",
       });
+    } finally {
+      setRefreshing(false);
     }
   };
 
@@ -288,6 +295,8 @@ export default function BorrowingsPage() {
 
   const handleBorrow = async (event: React.FormEvent) => {
     event.preventDefault();
+    if (borrowLoading) return;
+    setBorrowLoading(true);
     try {
       await borrowBook({
         book_id: Number(borrowForm.book_id),
@@ -308,11 +317,15 @@ export default function BorrowingsPage() {
         title: "Borrowing failed",
         description: err.message || "Request failed",
       });
+    } finally {
+      setBorrowLoading(false);
     }
   };
 
   const handleReturn = async (event: React.FormEvent) => {
     event.preventDefault();
+    if (returnLoading) return;
+    setReturnLoading(true);
     try {
       await returnBook(Number(returnForm.loan_id));
       setReturnForm({ loan_id: "" });
@@ -329,11 +342,14 @@ export default function BorrowingsPage() {
         title: "Return failed",
         description: err.message || "Request failed",
       });
+    } finally {
+      setReturnLoading(false);
     }
   };
 
   const handleCollectFine = async (event: React.FormEvent) => {
     event.preventDefault();
+    if (fineLoading) return;
     setFineLoading(true);
     try {
       await createLoanFinePayment(Number(fineForm.loan_id), {
@@ -362,10 +378,20 @@ export default function BorrowingsPage() {
 
   const handleCreateQuickUser = async (event: React.FormEvent) => {
     event.preventDefault();
+    if (userActionLoading) return;
+    const trimmedName = quickUserForm.name.trim();
+    if (!trimmedName) {
+      showToast({
+        type: "error",
+        title: "Name is required",
+        description: "Whitespace-only values are not allowed.",
+      });
+      return;
+    }
     setUserActionLoading(true);
     try {
       const payload: any = {
-        name: quickUserForm.name.trim(),
+        name: trimmedName,
         email: quickUserForm.email.trim() || null,
         phone: quickUserForm.phone.trim() || null,
         role: quickUserForm.role,
@@ -398,6 +424,7 @@ export default function BorrowingsPage() {
   };
 
   const handleUpdateQuickUser = async () => {
+    if (userActionLoading) return;
     if (!quickUserForm.id) {
       showToast({
         type: "info",
@@ -406,10 +433,19 @@ export default function BorrowingsPage() {
       });
       return;
     }
+    const trimmedName = quickUserForm.name.trim();
+    if (!trimmedName) {
+      showToast({
+        type: "error",
+        title: "Name is required",
+        description: "Whitespace-only values are not allowed.",
+      });
+      return;
+    }
     setUserActionLoading(true);
     try {
       const payload: any = {
-        name: quickUserForm.name.trim(),
+        name: trimmedName,
         email: quickUserForm.email.trim() || null,
         phone: quickUserForm.phone.trim() || null,
         role: quickUserForm.role,
@@ -433,6 +469,9 @@ export default function BorrowingsPage() {
     }
   };
 
+  const modalActionLoading = borrowLoading || returnLoading || fineLoading || userActionLoading;
+  const pageActionLoading = modalActionLoading || refreshing;
+
   return (
     <div className="page-layout">
       <header className="page-header">
@@ -441,8 +480,12 @@ export default function BorrowingsPage() {
           <h1>Borrowings, Returns, Fines</h1>
           <p className="lede">Issue and return books fast while keeping user and inventory records accurate.</p>
         </div>
-        <button className="secondary" onClick={() => refresh(true)}>
-          Refresh
+        <button
+          className="secondary"
+          onClick={() => refresh(true)}
+          disabled={registerLoading || pageActionLoading}
+        >
+          {registerLoading || refreshing ? "Refreshing..." : "Refresh"}
         </button>
       </header>
 
@@ -475,6 +518,7 @@ export default function BorrowingsPage() {
             type="button"
             className="action-tile"
             onClick={() => setActiveModal("borrow")}
+            disabled={pageActionLoading}
             data-testid="borrow-open-modal"
           >
             <strong>Issue Book</strong>
@@ -485,6 +529,7 @@ export default function BorrowingsPage() {
             type="button"
             className="action-tile"
             onClick={() => setActiveModal("return")}
+            disabled={pageActionLoading}
             data-testid="return-open-modal"
           >
             <strong>Accept Return</strong>
@@ -495,6 +540,7 @@ export default function BorrowingsPage() {
             type="button"
             className="action-tile"
             onClick={() => setActiveModal("fine")}
+            disabled={pageActionLoading}
             data-testid="fine-open-modal"
           >
             <strong>Fine Collection</strong>
@@ -505,6 +551,7 @@ export default function BorrowingsPage() {
             type="button"
             className="action-tile"
             onClick={() => setActiveModal("quick_user")}
+            disabled={pageActionLoading}
             data-testid="quick-user-open-modal"
           >
             <strong>Quick User Desk</strong>
@@ -699,8 +746,8 @@ export default function BorrowingsPage() {
             />
           </div>
           <div className="modal-actions">
-            <button type="submit" data-testid="borrow-submit">
-              Record Borrowing
+            <button type="submit" data-testid="borrow-submit" disabled={borrowLoading}>
+              {borrowLoading ? "Recording..." : "Record Borrowing"}
             </button>
           </div>
         </form>
@@ -724,8 +771,13 @@ export default function BorrowingsPage() {
             testId="return-loan-id"
           />
           <div className="modal-actions">
-            <button type="submit" className="secondary" data-testid="return-submit">
-              Record Return
+            <button
+              type="submit"
+              className="secondary"
+              data-testid="return-submit"
+              disabled={returnLoading}
+            >
+              {returnLoading ? "Recording..." : "Record Return"}
             </button>
           </div>
         </form>

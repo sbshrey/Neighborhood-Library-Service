@@ -2,6 +2,7 @@
 
 import { useEffect, useMemo, useState } from "react";
 import ActionModal from "../../components/ActionModal";
+import ListViewCard, { ListGrid } from "../../components/ListViewCard";
 import SearchableSelect from "../../components/SearchableSelect";
 import { useToast } from "../../components/ToastProvider";
 import { createBook, deleteBook, getBooks, queryBooks, updateBook } from "../../lib/api";
@@ -35,6 +36,8 @@ export default function CatalogPage() {
   const [modalMode, setModalMode] = useState<BookModalMode>(null);
   const [activeBookId, setActiveBookId] = useState<number | null>(null);
   const [bookForm, setBookForm] = useState(initialBookForm);
+  const [bookSubmitting, setBookSubmitting] = useState(false);
+  const [deletingBookId, setDeletingBookId] = useState<number | null>(null);
 
   const sortConfigMap: Record<string, { sort_by: string; sort_order: "asc" | "desc" }> = {
     title_asc: { sort_by: "title", sort_order: "asc" },
@@ -187,6 +190,17 @@ export default function CatalogPage() {
 
   const handleBookSubmit = async (event: React.FormEvent) => {
     event.preventDefault();
+    if (bookSubmitting) return;
+    const trimmedTitle = bookForm.title.trim();
+    const trimmedAuthor = bookForm.author.trim();
+    if (!trimmedTitle || !trimmedAuthor) {
+      showToast({
+        type: "error",
+        title: "Title and author are required",
+        description: "Whitespace-only values are not allowed.",
+      });
+      return;
+    }
     const copies = Number(bookForm.copies_total);
     if (!Number.isFinite(copies) || copies < 1) {
       showToast({ type: "error", title: "Total copies must be 1 or higher" });
@@ -207,12 +221,13 @@ export default function CatalogPage() {
       return;
     }
 
+    setBookSubmitting(true);
     try {
       if (modalMode === "edit") {
         if (!activeBookId) return;
         await updateBook(activeBookId, {
-          title: bookForm.title.trim(),
-          author: bookForm.author.trim(),
+          title: trimmedTitle,
+          author: trimmedAuthor,
           subject: bookForm.subject.trim() || null,
           rack_number: bookForm.rack_number.trim() || null,
           isbn: bookForm.isbn.trim() || null,
@@ -223,6 +238,8 @@ export default function CatalogPage() {
       } else {
         await createBook({
           ...bookForm,
+          title: trimmedTitle,
+          author: trimmedAuthor,
           subject: bookForm.subject.trim() || undefined,
           rack_number: bookForm.rack_number.trim() || undefined,
           isbn: bookForm.isbn.trim() || undefined,
@@ -242,12 +259,16 @@ export default function CatalogPage() {
         title: modalMode === "edit" ? "Unable to update book" : "Unable to create book",
         description: err.message || "Request failed",
       });
+    } finally {
+      setBookSubmitting(false);
     }
   };
 
   const handleDeleteBook = async (book: any) => {
+    if (bookSubmitting || deletingBookId !== null) return;
     const ok = window.confirm(`Delete "${book.title}"?`);
     if (!ok) return;
+    setDeletingBookId(book.id);
     try {
       await deleteBook(book.id);
       if (activeBookId === book.id) {
@@ -261,6 +282,8 @@ export default function CatalogPage() {
         title: "Unable to delete book",
         description: err.message || "Request failed",
       });
+    } finally {
+      setDeletingBookId(null);
     }
   };
 
@@ -282,11 +305,20 @@ export default function CatalogPage() {
           </p>
         </div>
         <div className="page-actions">
-          <button type="button" onClick={openCreateModal} data-testid="book-open-create">
+          <button
+            type="button"
+            onClick={openCreateModal}
+            data-testid="book-open-create"
+            disabled={loading || bookSubmitting || deletingBookId !== null}
+          >
             Add Book
           </button>
-          <button className="secondary" onClick={() => refresh(true)}>
-            Refresh
+          <button
+            className="secondary"
+            onClick={() => refresh(true)}
+            disabled={loading || bookSubmitting || deletingBookId !== null}
+          >
+            {loading ? "Refreshing..." : "Refresh"}
           </button>
         </div>
       </header>
@@ -310,78 +342,106 @@ export default function CatalogPage() {
         </div>
       </section>
 
-      <section className="table-card">
-        <div className="card-header">
-          <h2>Catalog Index</h2>
-          <span className="pill">Searchable</span>
-        </div>
-        <div className="filter-bar">
-          <div className="filter-field grow">
-            <label>Search</label>
-            <input
-              type="search"
-              value={search}
-              onChange={(event) => setSearch(event.target.value)}
-              placeholder="Title, author, subject, rack, ISBN, Book ID"
-            />
+      <ListViewCard
+        title="Catalog Index"
+        headerRight={<span className="pill">Searchable</span>}
+        filters={(
+          <>
+            <div className="filter-field grow">
+              <label>Search</label>
+              <input
+                type="search"
+                value={search}
+                onChange={(event) => setSearch(event.target.value)}
+                placeholder="Title, author, subject, rack, ISBN, Book ID"
+              />
+            </div>
+            <div className="filter-field">
+              <SearchableSelect
+                label="Author"
+                value={authorFilter}
+                options={authorFilterOptions}
+                placeholder="Any author"
+                onChange={setAuthorFilter}
+                multiple
+                testId="catalog-author-filter"
+              />
+            </div>
+            <div className="filter-field">
+              <SearchableSelect
+                label="Availability"
+                value={availabilityFilter}
+                options={availabilityFilterOptions}
+                placeholder="Any availability"
+                onChange={setAvailabilityFilter}
+                multiple
+                testId="catalog-availability-filter"
+              />
+            </div>
+            <div className="filter-field">
+              <SearchableSelect
+                label="Subject"
+                value={subjectFilter}
+                options={subjectFilterOptions}
+                placeholder="Any subject"
+                onChange={setSubjectFilter}
+                multiple
+                testId="catalog-subject-filter"
+              />
+            </div>
+            <div className="filter-field">
+              <SearchableSelect
+                label="Sort"
+                value={sortBy}
+                options={sortOptions}
+                placeholder="Sort catalog"
+                onChange={setSortBy}
+                testId="catalog-sort"
+              />
+            </div>
+            <div className="filter-field">
+              <label>Page Size</label>
+              <select
+                value={pageSize}
+                onChange={(event) => setPageSize(Number(event.target.value))}
+                data-testid="catalog-page-size"
+              >
+                <option value={10}>10</option>
+                <option value={20}>20</option>
+                <option value={50}>50</option>
+              </select>
+            </div>
+          </>
+        )}
+        footer={(
+          <div className="table-footer">
+            <div className="meta-label">
+              Page {page} · Showing {books.length} record{books.length === 1 ? "" : "s"}
+            </div>
+            <div className="row-actions">
+              <button
+                type="button"
+                className="ghost small"
+                onClick={() => setPage((current) => Math.max(1, current - 1))}
+                disabled={page === 1 || loading}
+                data-testid="catalog-prev-page"
+              >
+                Previous
+              </button>
+              <button
+                type="button"
+                className="ghost small"
+                onClick={() => setPage((current) => current + 1)}
+                disabled={!hasNextPage || loading}
+                data-testid="catalog-next-page"
+              >
+                Next
+              </button>
+            </div>
           </div>
-          <div className="filter-field">
-            <SearchableSelect
-              label="Author"
-              value={authorFilter}
-              options={authorFilterOptions}
-              placeholder="Any author"
-              onChange={setAuthorFilter}
-              multiple
-              testId="catalog-author-filter"
-            />
-          </div>
-          <div className="filter-field">
-            <SearchableSelect
-              label="Availability"
-              value={availabilityFilter}
-              options={availabilityFilterOptions}
-              placeholder="Any availability"
-              onChange={setAvailabilityFilter}
-              multiple
-              testId="catalog-availability-filter"
-            />
-          </div>
-          <div className="filter-field">
-            <SearchableSelect
-              label="Subject"
-              value={subjectFilter}
-              options={subjectFilterOptions}
-              placeholder="Any subject"
-              onChange={setSubjectFilter}
-              multiple
-              testId="catalog-subject-filter"
-            />
-          </div>
-          <div className="filter-field">
-            <SearchableSelect
-              label="Sort"
-              value={sortBy}
-              options={sortOptions}
-              placeholder="Sort catalog"
-              onChange={setSortBy}
-              testId="catalog-sort"
-            />
-          </div>
-          <div className="filter-field">
-            <label>Page Size</label>
-            <select
-              value={pageSize}
-              onChange={(event) => setPageSize(Number(event.target.value))}
-              data-testid="catalog-page-size"
-            >
-              <option value={10}>10</option>
-              <option value={20}>20</option>
-              <option value={50}>50</option>
-            </select>
-          </div>
-        </div>
-        <div className="table">
+        )}
+      >
+        <ListGrid>
           {books.map((book) => (
             <div
               key={book.id}
@@ -425,6 +485,7 @@ export default function CatalogPage() {
                     className="ghost small"
                     type="button"
                     onClick={() => openEditModal(book)}
+                    disabled={bookSubmitting || deletingBookId !== null}
                   >
                     Edit
                   </button>
@@ -432,8 +493,9 @@ export default function CatalogPage() {
                     className="danger small"
                     type="button"
                     onClick={() => handleDeleteBook(book)}
+                    disabled={bookSubmitting || deletingBookId !== null}
                   >
-                    Delete
+                    {deletingBookId === book.id ? "Deleting..." : "Delete"}
                   </button>
                 </div>
               </div>
@@ -452,33 +514,8 @@ export default function CatalogPage() {
               <div />
             </div>
           )}
-        </div>
-        <div className="table-footer">
-          <div className="meta-label">
-            Page {page} · Showing {books.length} record{books.length === 1 ? "" : "s"}
-          </div>
-          <div className="row-actions">
-            <button
-              type="button"
-              className="ghost small"
-              onClick={() => setPage((current) => Math.max(1, current - 1))}
-              disabled={page === 1 || loading}
-              data-testid="catalog-prev-page"
-            >
-              Previous
-            </button>
-            <button
-              type="button"
-              className="ghost small"
-              onClick={() => setPage((current) => current + 1)}
-              disabled={!hasNextPage || loading}
-              data-testid="catalog-next-page"
-            >
-              Next
-            </button>
-          </div>
-        </div>
-      </section>
+        </ListGrid>
+      </ListViewCard>
 
       <ActionModal
         open={modalMode !== null}
@@ -561,11 +598,11 @@ export default function CatalogPage() {
             />
           </div>
           <div className="modal-actions">
-            <button type="button" className="secondary" onClick={closeModal}>
+            <button type="button" className="secondary" onClick={closeModal} disabled={bookSubmitting}>
               Cancel
             </button>
-            <button type="submit" data-testid="book-submit">
-              {modalMode === "edit" ? "Save Changes" : "Add Book"}
+            <button type="submit" data-testid="book-submit" disabled={bookSubmitting}>
+              {bookSubmitting ? "Saving..." : modalMode === "edit" ? "Save Changes" : "Add Book"}
             </button>
           </div>
         </form>

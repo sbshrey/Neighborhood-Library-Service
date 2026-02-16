@@ -2,6 +2,7 @@
 
 import { useEffect, useMemo, useState } from "react";
 
+import ListViewCard, { ListGrid } from "../../components/ListViewCard";
 import SearchableSelect from "../../components/SearchableSelect";
 import { useToast } from "../../components/ToastProvider";
 import { FinePaymentLedgerItem, queryFinePayments } from "../../lib/api";
@@ -130,8 +131,8 @@ export default function FinesLedgerPage() {
             Payment ledger for collected fines with user, loan, and catalog traceability.
           </p>
         </div>
-        <button className="secondary" onClick={() => loadPage(true)}>
-          Refresh
+        <button className="secondary" onClick={() => loadPage(true)} disabled={loading}>
+          {loading ? "Refreshing..." : "Refresh"}
         </button>
       </header>
 
@@ -154,53 +155,78 @@ export default function FinesLedgerPage() {
         </div>
       </section>
 
-      <section className="table-card">
-        <div className="card-header">
-          <h2>Collection Register</h2>
-          <span className="pill">Auditable</span>
-        </div>
-        <div className="filter-bar">
-          <div className="filter-field grow">
-            <label>Search</label>
-            <input
-              type="search"
-              value={search}
-              onChange={(event) => setSearch(event.target.value)}
-              placeholder="Payment ID, loan, user name/email/phone, title, ISBN, reference"
-            />
+      <ListViewCard
+        title="Collection Register"
+        headerRight={<span className="pill">Auditable</span>}
+        filters={(
+          <>
+            <div className="filter-field grow">
+              <label>Search</label>
+              <input
+                type="search"
+                value={search}
+                onChange={(event) => setSearch(event.target.value)}
+                placeholder="Payment ID, loan, user name/email/phone, title, ISBN, reference"
+              />
+            </div>
+            <div className="filter-field">
+              <SearchableSelect
+                label="Payment Mode"
+                value={paymentModes}
+                options={paymentModeOptions}
+                placeholder="All modes"
+                onChange={setPaymentModes}
+                multiple
+                testId="fines-mode-filter"
+              />
+            </div>
+            <div className="filter-field">
+              <SearchableSelect
+                label="Sort"
+                value={sortBy}
+                options={sortOptions}
+                placeholder="Sort"
+                onChange={setSortBy}
+                testId="fines-sort"
+              />
+            </div>
+            <div className="filter-field">
+              <label>Page Size</label>
+              <select value={pageSize} onChange={(event) => setPageSize(Number(event.target.value))}>
+                <option value={10}>10</option>
+                <option value={20}>20</option>
+                <option value={50}>50</option>
+              </select>
+            </div>
+          </>
+        )}
+        footer={(
+          <div className="table-footer">
+            <div className="meta-label">
+              Page {page} · Showing {rows.length} payment record{rows.length === 1 ? "" : "s"}
+            </div>
+            <div className="row-actions">
+              <button
+                type="button"
+                className="ghost small"
+                onClick={() => setPage((current) => Math.max(1, current - 1))}
+                disabled={page === 1 || loading}
+              >
+                Previous
+              </button>
+              <button
+                type="button"
+                className="ghost small"
+                onClick={() => setPage((current) => current + 1)}
+                disabled={!hasNextPage || loading}
+              >
+                Next
+              </button>
+            </div>
           </div>
-          <div className="filter-field">
-            <SearchableSelect
-              label="Payment Mode"
-              value={paymentModes}
-              options={paymentModeOptions}
-              placeholder="All modes"
-              onChange={setPaymentModes}
-              multiple
-              testId="fines-mode-filter"
-            />
-          </div>
-          <div className="filter-field">
-            <SearchableSelect
-              label="Sort"
-              value={sortBy}
-              options={sortOptions}
-              placeholder="Sort"
-              onChange={setSortBy}
-              testId="fines-sort"
-            />
-          </div>
-          <div className="filter-field">
-            <label>Page Size</label>
-            <select value={pageSize} onChange={(event) => setPageSize(Number(event.target.value))}>
-              <option value={10}>10</option>
-              <option value={20}>20</option>
-              <option value={50}>50</option>
-            </select>
-          </div>
-        </div>
-
-        <div className="table">
+        )}
+      >
+        <ListGrid>
           {rows.map((row) => (
             <div key={row.id} className="row row-fine" data-testid="fine-row">
               <div>
@@ -253,31 +279,8 @@ export default function FinesLedgerPage() {
               <div />
             </div>
           ) : null}
-        </div>
-        <div className="table-footer">
-          <div className="meta-label">
-            Page {page} · Showing {rows.length} payment record{rows.length === 1 ? "" : "s"}
-          </div>
-          <div className="row-actions">
-            <button
-              type="button"
-              className="ghost small"
-              onClick={() => setPage((current) => Math.max(1, current - 1))}
-              disabled={page === 1 || loading}
-            >
-              Previous
-            </button>
-            <button
-              type="button"
-              className="ghost small"
-              onClick={() => setPage((current) => current + 1)}
-              disabled={!hasNextPage || loading}
-            >
-              Next
-            </button>
-          </div>
-        </div>
-      </section>
+        </ListGrid>
+      </ListViewCard>
     </div>
   );
 }

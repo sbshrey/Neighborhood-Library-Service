@@ -2,6 +2,7 @@
 
 import { useEffect, useMemo, useState } from "react";
 
+import ListViewCard, { ListGrid } from "../../components/ListViewCard";
 import SearchableSelect from "../../components/SearchableSelect";
 import { useToast } from "../../components/ToastProvider";
 import { queryAuditLogs } from "../../lib/api";
@@ -96,70 +97,98 @@ export default function AuditPage() {
           <h1>Audit Timeline</h1>
           <p className="lede">Database-backed request audit log for all mutating API operations.</p>
         </div>
-        <button className="secondary" onClick={loadEvents}>
+        <button className="secondary" onClick={loadEvents} disabled={loading}>
           {loading ? "Loading..." : "Refresh"}
         </button>
       </header>
 
-      <section className="table-card">
-        <div className="card-header">
-          <h2>Audit Logs</h2>
-          <span className="pill">Persisted in DB</span>
-        </div>
-        <div className="filter-bar">
-          <div className="filter-field grow">
-            <label>Search</label>
-            <input
-              type="search"
-              value={search}
-              onChange={(event) => setSearch(event.target.value)}
-              placeholder="Path, method, role, status, actor, entity id"
-            />
+      <ListViewCard
+        title="Audit Logs"
+        headerRight={<span className="pill">Persisted in DB</span>}
+        filters={(
+          <>
+            <div className="filter-field grow">
+              <label>Search</label>
+              <input
+                type="search"
+                value={search}
+                onChange={(event) => setSearch(event.target.value)}
+                placeholder="Path, method, role, status, actor, entity id"
+              />
+            </div>
+            <div className="filter-field">
+              <SearchableSelect
+                label="Method"
+                value={method}
+                options={methodOptions}
+                placeholder="Any method"
+                onChange={setMethod}
+                multiple
+              />
+            </div>
+            <div className="filter-field">
+              <SearchableSelect
+                label="Entity"
+                value={entity}
+                options={entityOptions}
+                placeholder="Any entity"
+                onChange={setEntity}
+                multiple
+              />
+            </div>
+            <div className="filter-field">
+              <SearchableSelect
+                label="Sort"
+                value={sortBy}
+                options={sortOptions}
+                placeholder="Sort logs"
+                onChange={setSortBy}
+                testId="audit-sort"
+              />
+            </div>
+            <div className="filter-field">
+              <label>Page Size</label>
+              <select
+                value={pageSize}
+                onChange={(event) => setPageSize(Number(event.target.value))}
+                data-testid="audit-page-size"
+              >
+                <option value={20}>20</option>
+                <option value={50}>50</option>
+                <option value={100}>100</option>
+              </select>
+            </div>
+          </>
+        )}
+        footer={(
+          <div className="table-footer">
+            <div className="meta-label">
+              Page {page} · Showing {events.length} record{events.length === 1 ? "" : "s"}
+            </div>
+            <div className="row-actions">
+              <button
+                type="button"
+                className="ghost small"
+                onClick={() => setPage((current) => Math.max(1, current - 1))}
+                disabled={page === 1 || loading}
+                data-testid="audit-prev-page"
+              >
+                Previous
+              </button>
+              <button
+                type="button"
+                className="ghost small"
+                onClick={() => setPage((current) => current + 1)}
+                disabled={!hasNextPage || loading}
+                data-testid="audit-next-page"
+              >
+                Next
+              </button>
+            </div>
           </div>
-          <div className="filter-field">
-            <SearchableSelect
-              label="Method"
-              value={method}
-              options={methodOptions}
-              placeholder="Any method"
-              onChange={setMethod}
-              multiple
-            />
-          </div>
-          <div className="filter-field">
-            <SearchableSelect
-              label="Entity"
-              value={entity}
-              options={entityOptions}
-              placeholder="Any entity"
-              onChange={setEntity}
-              multiple
-            />
-          </div>
-          <div className="filter-field">
-            <SearchableSelect
-              label="Sort"
-              value={sortBy}
-              options={sortOptions}
-              placeholder="Sort logs"
-              onChange={setSortBy}
-              testId="audit-sort"
-            />
-          </div>
-          <div className="filter-field">
-            <label>Page Size</label>
-            <select
-              value={pageSize}
-              onChange={(event) => setPageSize(Number(event.target.value))}
-              data-testid="audit-page-size"
-            >
-              <option value={20}>20</option>
-              <option value={50}>50</option>
-              <option value={100}>100</option>
-            </select>
-          </div>
-        </div>
-        <div className="table">
+        )}
+      >
+        <ListGrid>
           {events.map((event) => (
             <div key={event.id} className="row">
               <div>
@@ -191,33 +220,8 @@ export default function AuditPage() {
               <div />
             </div>
           ) : null}
-        </div>
-        <div className="table-footer">
-          <div className="meta-label">
-            Page {page} · Showing {events.length} record{events.length === 1 ? "" : "s"}
-          </div>
-          <div className="row-actions">
-            <button
-              type="button"
-              className="ghost small"
-              onClick={() => setPage((current) => Math.max(1, current - 1))}
-              disabled={page === 1 || loading}
-              data-testid="audit-prev-page"
-            >
-              Previous
-            </button>
-            <button
-              type="button"
-              className="ghost small"
-              onClick={() => setPage((current) => current + 1)}
-              disabled={!hasNextPage || loading}
-              data-testid="audit-next-page"
-            >
-              Next
-            </button>
-          </div>
-        </div>
-      </section>
+        </ListGrid>
+      </ListViewCard>
     </div>
   );
 }
