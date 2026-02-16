@@ -1,5 +1,6 @@
 import "./globals.css";
 import AppShell from "../components/AppShell";
+import AppErrorBoundary from "../components/AppErrorBoundary";
 
 export const metadata = {
   title: "Neighborhood Library Service",
@@ -10,7 +11,9 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
   return (
     <html lang="en">
       <body>
-        <AppShell>{children}</AppShell>
+        <AppErrorBoundary>
+          <AppShell>{children}</AppShell>
+        </AppErrorBoundary>
       </body>
     </html>
   );

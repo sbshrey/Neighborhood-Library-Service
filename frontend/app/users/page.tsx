@@ -2,6 +2,7 @@
 
 import { useEffect, useMemo, useState } from "react";
 import ActionModal from "../../components/ActionModal";
+import ListViewCard, { ListGrid } from "../../components/ListViewCard";
 import SearchableSelect from "../../components/SearchableSelect";
 import { useToast } from "../../components/ToastProvider";
 import { createUser, deleteUser, getUsers, queryUsers, updateUser } from "../../lib/api";
@@ -30,6 +31,8 @@ export default function UsersPage() {
   const [modalMode, setModalMode] = useState<UserModalMode>(null);
   const [activeUserId, setActiveUserId] = useState<number | null>(null);
   const [userForm, setUserForm] = useState(initialUserForm);
+  const [userSubmitting, setUserSubmitting] = useState(false);
+  const [deletingUserId, setDeletingUserId] = useState<number | null>(null);
 
   const sortConfigMap: Record<string, { sort_by: string; sort_order: "asc" | "desc" }> = {
     name_asc: { sort_by: "name", sort_order: "asc" },
@@ -141,11 +144,22 @@ export default function UsersPage() {
 
   const handleUserSubmit = async (event: React.FormEvent) => {
     event.preventDefault();
+    if (userSubmitting) return;
+    const trimmedName = userForm.name.trim();
+    if (!trimmedName) {
+      showToast({
+        type: "error",
+        title: "Name is required",
+        description: "Whitespace-only values are not allowed.",
+      });
+      return;
+    }
+    setUserSubmitting(true);
     try {
       if (modalMode === "edit") {
         if (!activeUserId) return;
         await updateUser(activeUserId, {
-          name: userForm.name.trim(),
+          name: trimmedName,
           email: userForm.email.trim() || null,
           phone: userForm.phone.trim() || null,
           role: userForm.role,
@@ -153,7 +167,7 @@ export default function UsersPage() {
         showToast({ type: "success", title: "User updated successfully" });
       } else {
         await createUser({
-          name: userForm.name.trim(),
+          name: trimmedName,
           email: userForm.email.trim() || undefined,
           phone: userForm.phone.trim() || undefined,
           role: userForm.role,
@@ -170,12 +184,16 @@ export default function UsersPage() {
         title: modalMode === "edit" ? "Unable to update user" : "Unable to create user",
         description: err.message || "Request failed",
       });
+    } finally {
+      setUserSubmitting(false);
     }
   };
 
   const handleDeleteUser = async (user: any) => {
+    if (userSubmitting || deletingUserId !== null) return;
     const ok = window.confirm(`Delete user "${user.name}"?`);
     if (!ok) return;
+    setDeletingUserId(user.id);
     try {
       await deleteUser(user.id);
       if (activeUserId === user.id) {
@@ -189,6 +207,8 @@ export default function UsersPage() {
         title: "Unable to delete user",
         description: err.message || "Request failed",
       });
+    } finally {
+      setDeletingUserId(null);
     }
   };
 
@@ -210,11 +230,20 @@ export default function UsersPage() {
           </p>
         </div>
         <div className="page-actions">
-          <button type="button" onClick={openCreateModal} data-testid="user-open-create">
+          <button
+            type="button"
+            onClick={openCreateModal}
+            data-testid="user-open-create"
+            disabled={loading || userSubmitting || deletingUserId !== null}
+          >
             Add User
           </button>
-          <button className="secondary" onClick={() => refresh(true)}>
-            Refresh
+          <button
+            className="secondary"
+            onClick={() => refresh(true)}
+            disabled={loading || userSubmitting || deletingUserId !== null}
+          >
+            {loading ? "Refreshing..." : "Refresh"}
           </button>
         </div>
       </header>
@@ -238,56 +267,84 @@ export default function UsersPage() {
         </div>
       </section>
 
-      <section className="table-card">
-        <div className="card-header">
-          <h2>User Directory</h2>
-          <span className="pill">Searchable</span>
-        </div>
-        <div className="filter-bar">
-          <div className="filter-field grow">
-            <label>Search</label>
-            <input
-              type="search"
-              value={search}
-              onChange={(event) => setSearch(event.target.value)}
-              placeholder="Name, email, phone, user ID"
-            />
+      <ListViewCard
+        title="User Directory"
+        headerRight={<span className="pill">Searchable</span>}
+        filters={(
+          <>
+            <div className="filter-field grow">
+              <label>Search</label>
+              <input
+                type="search"
+                value={search}
+                onChange={(event) => setSearch(event.target.value)}
+                placeholder="Name, email, phone, user ID"
+              />
+            </div>
+            <div className="filter-field">
+              <SearchableSelect
+                label="Role"
+                value={roleFilter}
+                options={roleFilterOptions}
+                placeholder="Any role"
+                onChange={setRoleFilter}
+                multiple
+                testId="users-role-filter"
+              />
+            </div>
+            <div className="filter-field">
+              <SearchableSelect
+                label="Sort"
+                value={sortBy}
+                options={sortOptions}
+                placeholder="Sort users"
+                onChange={setSortBy}
+                testId="users-sort"
+              />
+            </div>
+            <div className="filter-field">
+              <label>Page Size</label>
+              <select
+                value={pageSize}
+                onChange={(event) => setPageSize(Number(event.target.value))}
+                data-testid="users-page-size"
+              >
+                <option value={10}>10</option>
+                <option value={20}>20</option>
+                <option value={50}>50</option>
+              </select>
+            </div>
+          </>
+        )}
+        footer={(
+          <div className="table-footer">
+            <div className="meta-label">
+              Page {page} · Showing {users.length} record{users.length === 1 ? "" : "s"}
+            </div>
+            <div className="row-actions">
+              <button
+                type="button"
+                className="ghost small"
+                onClick={() => setPage((current) => Math.max(1, current - 1))}
+                disabled={page === 1 || loading}
+                data-testid="users-prev-page"
+              >
+                Previous
+              </button>
+              <button
+                type="button"
+                className="ghost small"
+                onClick={() => setPage((current) => current + 1)}
+                disabled={!hasNextPage || loading}
+                data-testid="users-next-page"
+              >
+                Next
+              </button>
+            </div>
           </div>
-          <div className="filter-field">
-            <SearchableSelect
-              label="Role"
-              value={roleFilter}
-              options={roleFilterOptions}
-              placeholder="Any role"
-              onChange={setRoleFilter}
-              multiple
-              testId="users-role-filter"
-            />
-          </div>
-          <div className="filter-field">
-            <SearchableSelect
-              label="Sort"
-              value={sortBy}
-              options={sortOptions}
-              placeholder="Sort users"
-              onChange={setSortBy}
-              testId="users-sort"
-            />
-          </div>
-          <div className="filter-field">
-            <label>Page Size</label>
-            <select
-              value={pageSize}
-              onChange={(event) => setPageSize(Number(event.target.value))}
-              data-testid="users-page-size"
-            >
-              <option value={10}>10</option>
-              <option value={20}>20</option>
-              <option value={50}>50</option>
-            </select>
-          </div>
-        </div>
-        <div className="table">
+        )}
+      >
+        <ListGrid>
           {users.map((user) => (
             <div
               key={user.id}
@@ -320,6 +377,7 @@ export default function UsersPage() {
                     className="ghost small"
                     type="button"
                     onClick={() => openEditModal(user)}
+                    disabled={userSubmitting || deletingUserId !== null}
                   >
                     Edit
                   </button>
@@ -327,8 +385,9 @@ export default function UsersPage() {
                     className="danger small"
                     type="button"
                     onClick={() => handleDeleteUser(user)}
+                    disabled={userSubmitting || deletingUserId !== null}
                   >
-                    Delete
+                    {deletingUserId === user.id ? "Deleting..." : "Delete"}
                   </button>
                 </div>
               </div>
@@ -345,33 +404,8 @@ export default function UsersPage() {
               <div />
             </div>
           )}
-        </div>
-        <div className="table-footer">
-          <div className="meta-label">
-            Page {page} · Showing {users.length} record{users.length === 1 ? "" : "s"}
-          </div>
-          <div className="row-actions">
-            <button
-              type="button"
-              className="ghost small"
-              onClick={() => setPage((current) => Math.max(1, current - 1))}
-              disabled={page === 1 || loading}
-              data-testid="users-prev-page"
-            >
-              Previous
-            </button>
-            <button
-              type="button"
-              className="ghost small"
-              onClick={() => setPage((current) => current + 1)}
-              disabled={!hasNextPage || loading}
-              data-testid="users-next-page"
-            >
-              Next
-            </button>
-          </div>
-        </div>
-      </section>
+        </ListGrid>
+      </ListViewCard>
 
       <ActionModal
         open={modalMode !== null}
@@ -421,11 +455,11 @@ export default function UsersPage() {
             </select>
           </div>
           <div className="modal-actions">
-            <button type="button" className="secondary" onClick={closeModal}>
+            <button type="button" className="secondary" onClick={closeModal} disabled={userSubmitting}>
               Cancel
             </button>
-            <button type="submit" data-testid="user-submit">
-              {modalMode === "edit" ? "Save Changes" : "Add User"}
+            <button type="submit" data-testid="user-submit" disabled={userSubmitting}>
+              {userSubmitting ? "Saving..." : modalMode === "edit" ? "Save Changes" : "Add User"}
             </button>
           </div>
         </form>

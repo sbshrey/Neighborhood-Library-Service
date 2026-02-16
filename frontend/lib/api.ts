@@ -1,4 +1,5 @@
 import { clearAuth, getStoredToken } from "./auth";
+import { API_PATHS } from "./api-paths";
 
 type RequestOptions = RequestInit & {
   auth?: boolean;
@@ -269,31 +270,31 @@ export async function queryBooks(params?: PageQuery & {
   appendQueryValue(query, "skip", params?.skip);
   appendQueryValue(query, "limit", params?.limit);
   const suffix = query.toString() ? `?${query.toString()}` : "";
-  return request<any[]>(`/books${suffix}`, { method: "GET" });
+  return request<any[]>(`${API_PATHS.books}${suffix}`, { method: "GET" });
 }
 
 export async function getBooks(q?: string) {
   const query = new URLSearchParams();
   if (q?.trim()) query.set("q", q.trim());
-  return requestAllPages<any>("/books", query, { method: "GET", pageSize: 200 });
+  return requestAllPages<any>(API_PATHS.books, query, { method: "GET", pageSize: 200 });
 }
 
 export async function createBook(payload: any) {
-  return request("/books", {
+  return request(API_PATHS.books, {
     method: "POST",
     body: JSON.stringify(payload)
   });
 }
 
 export async function updateBook(bookId: number, payload: any) {
-  return request(`/books/${bookId}`, {
+  return request(API_PATHS.book(bookId), {
     method: "PATCH",
     body: JSON.stringify(payload)
   });
 }
 
 export async function deleteBook(bookId: number) {
-  return request<void>(`/books/${bookId}`, {
+  return request<void>(API_PATHS.book(bookId), {
     method: "DELETE"
   });
 }
@@ -301,7 +302,7 @@ export async function deleteBook(bookId: number) {
 export async function getUsers(q?: string) {
   const query = new URLSearchParams();
   if (q?.trim()) query.set("q", q.trim());
-  return requestAllPages<any>("/users", query, { method: "GET", pageSize: 200 });
+  return requestAllPages<any>(API_PATHS.users, query, { method: "GET", pageSize: 200 });
 }
 
 export async function queryUsers(params?: PageQuery & {
@@ -318,31 +319,31 @@ export async function queryUsers(params?: PageQuery & {
   appendQueryValue(query, "skip", params?.skip);
   appendQueryValue(query, "limit", params?.limit);
   const suffix = query.toString() ? `?${query.toString()}` : "";
-  return request<any[]>(`/users${suffix}`, { method: "GET" });
+  return request<any[]>(`${API_PATHS.users}${suffix}`, { method: "GET" });
 }
 
 export async function createUser(payload: any) {
-  return request("/users", {
+  return request(API_PATHS.users, {
     method: "POST",
     body: JSON.stringify(payload)
   });
 }
 
 export async function updateUser(userId: number, payload: any) {
-  return request(`/users/${userId}`, {
+  return request(API_PATHS.user(userId), {
     method: "PATCH",
     body: JSON.stringify(payload)
   });
 }
 
 export async function deleteUser(userId: number) {
-  return request<void>(`/users/${userId}`, {
+  return request<void>(API_PATHS.user(userId), {
     method: "DELETE"
   });
 }
 
 export async function getLoans() {
-  return requestAllPages<LoanItem>("/loans", undefined, { method: "GET", pageSize: 200 });
+  return requestAllPages<LoanItem>(API_PATHS.loans, undefined, { method: "GET", pageSize: 200 });
 }
 
 export async function queryLoans(params?: PageQuery & {
@@ -365,62 +366,62 @@ export async function queryLoans(params?: PageQuery & {
   appendQueryValue(query, "skip", params?.skip);
   appendQueryValue(query, "limit", params?.limit);
   const suffix = query.toString() ? `?${query.toString()}` : "";
-  return request<LoanItem[]>(`/loans${suffix}`, { method: "GET" });
+  return request<LoanItem[]>(`${API_PATHS.loans}${suffix}`, { method: "GET" });
 }
 
 export async function borrowBook(payload: any) {
-  return request("/loans/borrow", {
+  return request(API_PATHS.borrowLoan, {
     method: "POST",
     body: JSON.stringify(payload)
   });
 }
 
 export async function returnBook(loanId: number) {
-  return request(`/loans/${loanId}/return`, { method: "POST" });
+  return request(API_PATHS.returnLoan(loanId), { method: "POST" });
 }
 
 export async function updateLoan(loanId: number, payload: { extend_days: number }) {
-  return request(`/loans/${loanId}`, {
+  return request(API_PATHS.loan(loanId), {
     method: "PATCH",
     body: JSON.stringify(payload)
   });
 }
 
 export async function deleteLoan(loanId: number) {
-  return request<void>(`/loans/${loanId}`, {
+  return request<void>(API_PATHS.loan(loanId), {
     method: "DELETE"
   });
 }
 
 export async function seedData() {
-  return request<{ status: string; message?: string; counts?: Record<string, number> }>("/seed", {
+  return request<{ status: string; message?: string; counts?: Record<string, number> }>(API_PATHS.seed, {
     method: "POST"
   });
 }
 
 export async function importBooksFile(file: File) {
   return upload<{ entity: string; imported: number; skipped: number; errors: Array<any> }>(
-    "/imports/books",
+    API_PATHS.importBooks,
     file
   );
 }
 
 export async function importUsersFile(file: File) {
   return upload<{ entity: string; imported: number; skipped: number; errors: Array<any> }>(
-    "/imports/users",
+    API_PATHS.importUsers,
     file
   );
 }
 
 export async function importLoansFile(file: File) {
   return upload<{ entity: string; imported: number; skipped: number; errors: Array<any> }>(
-    "/imports/loans",
+    API_PATHS.importLoans,
     file
   );
 }
 
 export async function getPolicy() {
-  return request<LibraryPolicy>("/settings/policy", { method: "GET" });
+  return request<LibraryPolicy>(API_PATHS.policy, { method: "GET" });
 }
 
 export async function updatePolicy(payload: {
@@ -429,7 +430,7 @@ export async function updatePolicy(payload: {
   max_loan_days: number;
   fine_per_day: number;
 }) {
-  return request<LibraryPolicy>("/settings/policy", {
+  return request<LibraryPolicy>(API_PATHS.policy, {
     method: "PUT",
     body: JSON.stringify(payload),
   });
@@ -448,7 +449,7 @@ export async function getAuditLogs(params?: {
   appendQueryValues(query, "entity", params?.entity);
   if (typeof params?.status_code === "number") query.set("status_code", String(params.status_code));
   const maxItems = typeof params?.limit === "number" ? params.limit : undefined;
-  return requestAllPages<AuditLog>("/audit/logs", query, {
+  return requestAllPages<AuditLog>(API_PATHS.auditLogs, query, {
     method: "GET",
     pageSize: 200,
     maxItems,
@@ -473,12 +474,12 @@ export async function queryAuditLogs(params?: PageQuery & {
   appendQueryValue(query, "skip", params?.skip);
   appendQueryValue(query, "limit", params?.limit);
   const suffix = query.toString() ? `?${query.toString()}` : "";
-  return request<AuditLog[]>(`/audit/logs${suffix}`, { method: "GET" });
+  return request<AuditLog[]>(`${API_PATHS.auditLogs}${suffix}`, { method: "GET" });
 }
 
 export async function login(payload: { email: string; password: string }) {
   return request<{ access_token: string; user: any; expires_in: number; token_type: string }>(
-    "/auth/login",
+    API_PATHS.authLogin,
     {
       method: "POST",
       body: JSON.stringify(payload),
@@ -488,30 +489,30 @@ export async function login(payload: { email: string; password: string }) {
 }
 
 export async function getMe() {
-  return request<any>("/auth/me", { method: "GET" });
+  return request<any>(API_PATHS.authMe, { method: "GET" });
 }
 
 export async function getMyLoans() {
-  return request<MemberLoan[]>("/users/me/loans", { method: "GET" });
+  return request<MemberLoan[]>(API_PATHS.myLoans, { method: "GET" });
 }
 
 export async function getMyFinePayments() {
-  return request<FinePayment[]>("/users/me/fine-payments", { method: "GET" });
+  return request<FinePayment[]>(API_PATHS.myFinePayments, { method: "GET" });
 }
 
 export async function getLoanFineSummary(loanId: number) {
-  return request<FineSummary>(`/loans/${loanId}/fine-summary`, { method: "GET" });
+  return request<FineSummary>(API_PATHS.loanFineSummary(loanId), { method: "GET" });
 }
 
 export async function getLoanFinePayments(loanId: number) {
-  return request<FinePayment[]>(`/loans/${loanId}/fine-payments`, { method: "GET" });
+  return request<FinePayment[]>(API_PATHS.loanFinePayments(loanId), { method: "GET" });
 }
 
 export async function createLoanFinePayment(
   loanId: number,
   payload: { amount: number; payment_mode: string; reference?: string | null; notes?: string | null }
 ) {
-  return request<FinePayment>(`/loans/${loanId}/fine-payments`, {
+  return request<FinePayment>(API_PATHS.loanFinePayments(loanId), {
     method: "POST",
     body: JSON.stringify(payload),
   });
@@ -539,7 +540,7 @@ export async function queryFinePayments(params?: PageQuery & {
   appendQueryValue(query, "skip", params?.skip);
   appendQueryValue(query, "limit", params?.limit);
   const suffix = query.toString() ? `?${query.toString()}` : "";
-  return request<FinePaymentLedgerItem[]>(`/fine-payments${suffix}`, { method: "GET" });
+  return request<FinePaymentLedgerItem[]>(`${API_PATHS.finePayments}${suffix}`, { method: "GET" });
 }
 
 export async function bootstrapAdmin(payload: {
@@ -548,7 +549,7 @@ export async function bootstrapAdmin(payload: {
   role: string;
   password: string;
 }) {
-  return request("/users", {
+  return request(API_PATHS.users, {
     method: "POST",
     body: JSON.stringify(payload),
     auth: false,

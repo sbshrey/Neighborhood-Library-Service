@@ -17,10 +17,17 @@ export default function LoginPage() {
 
   const onSubmit = async (event: FormEvent) => {
     event.preventDefault();
+    if (submitting || bootstrapping) return;
+    const trimmedEmail = email.trim();
+    const trimmedPassword = password.trim();
+    if (!trimmedEmail || !trimmedPassword) {
+      setError("Enter a valid email and password. Whitespace-only values are not allowed.");
+      return;
+    }
     setSubmitting(true);
     setError(null);
     try {
-      const result = await login({ email: email.trim(), password });
+      const result = await login({ email: trimmedEmail, password });
       setStoredToken(result.access_token);
       setStoredUser(result.user);
       router.replace("/");
@@ -32,6 +39,7 @@ export default function LoginPage() {
   };
 
   const onBootstrap = async () => {
+    if (submitting || bootstrapping) return;
     const trimmedName = name.trim();
     const trimmedEmail = email.trim();
     const trimmedPassword = password.trim();
@@ -99,14 +107,14 @@ export default function LoginPage() {
             required
           />
         </div>
-        <button type="submit" data-testid="login-submit" disabled={submitting}>
+        <button type="submit" data-testid="login-submit" disabled={submitting || bootstrapping}>
           {submitting ? "Signing in..." : "Sign In"}
         </button>
         <button
           type="button"
           className="secondary"
           onClick={onBootstrap}
-          disabled={bootstrapping}
+          disabled={submitting || bootstrapping}
         >
           {bootstrapping ? "Creating..." : "Bootstrap Admin (First Run)"}
         </button>

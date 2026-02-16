@@ -92,7 +92,7 @@ export default function MemberDashboardPage() {
           <h1>My Borrowings & Fines</h1>
           <p className="lede">Track your active loans, returned books, due dates, and fine totals.</p>
         </div>
-        <button className="secondary" onClick={loadLoans}>
+        <button className="secondary" onClick={loadLoans} disabled={loading}>
           {loading ? "Refreshing..." : "Refresh"}
         </button>
       </header>
