@@ -56,6 +56,7 @@ export default function SettingsPage() {
     max_loan_days: "21",
     fine_per_day: "2.0",
   });
+  const settingsBusy = loadingAction !== null;
 
   const loadPolicy = async () => {
     try {
@@ -164,6 +165,7 @@ export default function SettingsPage() {
     importer: (input: File) => Promise<{ imported: number; skipped: number; errors: Array<any> }>,
     setFile: (file: File | null) => void
   ) => {
+    if (settingsBusy) return;
     if (!file) {
       showToast({ type: "error", title: `Select a ${entity} CSV/XLSX file first` });
       return;
@@ -190,6 +192,7 @@ export default function SettingsPage() {
   };
 
   const runSeed = async () => {
+    if (settingsBusy) return;
     setLoadingAction("seed");
     try {
       const result = await seedData();
@@ -211,6 +214,7 @@ export default function SettingsPage() {
 
   const savePolicy = async (event: React.FormEvent) => {
     event.preventDefault();
+    if (settingsBusy) return;
     setLoadingAction("policy");
     try {
       const saved = await updatePolicy({
@@ -267,6 +271,7 @@ export default function SettingsPage() {
                 type="checkbox"
                 data-testid="policy-enforce-limits"
                 checked={policyForm.enforce_limits}
+                disabled={settingsBusy}
                 onChange={(event) =>
                   setPolicyForm({ ...policyForm, enforce_limits: event.target.checked })
                 }
@@ -281,6 +286,7 @@ export default function SettingsPage() {
                   max={50}
                   data-testid="policy-max-active-loans"
                   value={policyForm.max_active_loans_per_user}
+                  disabled={settingsBusy}
                   onChange={(event) =>
                     setPolicyForm({
                       ...policyForm,
@@ -298,6 +304,7 @@ export default function SettingsPage() {
                   max={365}
                   data-testid="policy-max-loan-days"
                   value={policyForm.max_loan_days}
+                  disabled={settingsBusy}
                   onChange={(event) =>
                     setPolicyForm({ ...policyForm, max_loan_days: event.target.value })
                   }
@@ -313,13 +320,14 @@ export default function SettingsPage() {
                 step="0.5"
                 data-testid="policy-fine-per-day"
                 value={policyForm.fine_per_day}
+                disabled={settingsBusy}
                 onChange={(event) =>
                   setPolicyForm({ ...policyForm, fine_per_day: event.target.value })
                 }
                 required
               />
             </div>
-            <button type="submit" disabled={loadingAction === "policy"} data-testid="policy-save">
+            <button type="submit" disabled={settingsBusy} data-testid="policy-save">
               {loadingAction === "policy" ? "Saving..." : "Save Policy"}
             </button>
           </form>
@@ -336,7 +344,7 @@ export default function SettingsPage() {
                 <strong>Bundled Books + Users + Loans</strong>
                 <p>Load curated Indian catalog, user profiles, and borrowing history.</p>
               </div>
-              <button className="secondary" onClick={runSeed} disabled={loadingAction === "seed"}>
+              <button className="secondary" onClick={runSeed} disabled={settingsBusy}>
                 {loadingAction === "seed" ? "Loading..." : "Load Dataset"}
               </button>
             </div>
@@ -406,7 +414,7 @@ export default function SettingsPage() {
                   className="ghost"
                   data-testid={`import-run-${row.entity}`}
                   onClick={() => runImport(row.entity, row.file, row.importer, row.setFile)}
-                  disabled={loadingAction === row.entity}
+                  disabled={settingsBusy}
                 >
                   {loadingAction === row.entity ? "Importing..." : "Import"}
                 </button>
