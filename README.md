@@ -16,11 +16,30 @@ A full‑stack take‑home implementation for managing books, users, and lending
 - **Backend:** Python, FastAPI, SQLAlchemy, PostgreSQL, **uv** (package/runtime manager)
 - **Frontend:** Next.js (React)
 
+## Prerequisites
+- Node.js `>=20.19` (or `>=22.12`) and npm
+- Python `>=3.10,<3.12`
+- PostgreSQL on `localhost:5432`
+- `uv` package manager
+
 ## Repository Layout
 - `backend/` Python API server
 - `frontend/` Next.js minimal UI
 
 ---
+
+## Fast Setup (Fresh Clone)
+From repo root:
+```bash
+make install
+make migrate
+make up
+```
+
+For a fully clean DB reset:
+```bash
+PGPASSWORD=<postgres_password> make reset-db CONFIRM=YES
+```
 
 ## Quick Start Script
 From repo root:
@@ -101,11 +120,18 @@ uv run alembic -c alembic.ini upgrade head
 
 Recreate the database from scratch:
 ```bash
-dropdb -h localhost -U postgres neighborhood_library
-createdb -h localhost -U postgres neighborhood_library
+PGPASSWORD=<postgres_password> dropdb -h localhost -U postgres neighborhood_library
+PGPASSWORD=<postgres_password> createdb -h localhost -U postgres neighborhood_library
 cd backend
 uv run alembic -c alembic.ini upgrade head
 ```
+
+or with Make:
+```bash
+PGPASSWORD=<postgres_password> make reset-db CONFIRM=YES
+```
+
+If your local Postgres trusts local connections, `PGPASSWORD` may not be required.
 
 ### 5) Run the API
 ```bash
