@@ -105,4 +105,3 @@ describe("LoginPage", () => {
     expect(loginMocks.replace).toHaveBeenCalledWith("/");
   });
 });
-

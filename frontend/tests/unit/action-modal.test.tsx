@@ -39,4 +39,3 @@ describe("ActionModal", () => {
     expect(onClose).toHaveBeenCalledTimes(2);
   });
 });
-
